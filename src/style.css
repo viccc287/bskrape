@@ -1,0 +1,140 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.87);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem;
+  background-color: #121212;
+  color: white;
+}
+
+#app {
+  width: 100%;
+  max-width: 1200px;
+  margin-top: 2rem;
+}
+
+#search-button {
+  cursor: pointer;
+  background-color: #1db954;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: 600;
+  display: block;
+  width: 100%;
+  max-width: 500px;
+  margin: 1rem auto;
+}
+
+#results-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  list-style: none;
+  padding: 0;
+}
+
+.result-item {
+  display: flex;
+  flex-direction: column;
+  background-color: #2a2a2a;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.2s ease-in-out;
+}
+
+.result-item:hover {
+  transform: scale(1.05);
+}
+
+.product-image-container {
+  overflow: hidden;
+  height: 150px;
+}
+
+.product-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.product-info {
+  padding: 15px;
+  text-align: left;
+}
+
+.product-info h4 {
+  margin-bottom: 0.5rem;
+  color: #1db954;
+  font-weight: 600;
+}
+
+.product-info p {
+  margin-bottom: 0.3rem;
+}
+
+.price {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.original-price {
+  color: #999;
+  font-size: 0.875rem;
+  margin-left: 10px;
+  text-decoration: line-through;
+}
+
+.discount {
+  color: #1db954;
+  font-size: 1rem;
+  margin-left: 10px;
+}
+
+.ending {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  margin-top: 10px;
+}
+
+.ultima {
+  background-color: red;
+  color: white;
+}
+
+.segunda {
+  background-color: yellow;
+  color: black;
+}
+
+.primera {
+  background-color: yellowgreen;
+  color: white;
+}
+
+@media (max-width: 600px) {
+  #results-list {
+    grid-template-columns: 1fr;
+  }
+
+  .product-image-container {
+    height: 200px;
+  }
+}
