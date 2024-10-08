@@ -1,0 +1,633 @@
+import express, { Request, Response } from 'express';
+import puppeteer from 'puppeteer-extra';
+import blockResourcesPlugin from 'puppeteer-extra-plugin-block-resources';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import AdblockerPlugin from 'puppeteer-extra-plugin-adblocker';
+import cors from 'cors';
+import { performance as nodePerformance } from 'perf_hooks';
+import { DEFAULT_INTERCEPT_RESOLUTION_PRIORITY, Browser, Page } from 'puppeteer';
+import chalk from 'chalk';
+import { Result, ScrapedData, Category } from './src/shared-types';
+import dotenv from 'dotenv';
+
+const log = console.log;
+const app = express();
+const PORT = 3000;
+
+app.use(cors());
+app.use(express.json());
+
+dotenv.config();
+
+const BASE_URL = 'https://despensa.bodegaaurrera.com.mx';
+const LOAD_URL =
+  'https://despensa.bodegaaurrera.com.mx/ip/refresco-coca-cola-sabor-original-2-5-l/00750105530524';
+
+const MAX_CONCURRENT_PAGES = 5;
+const ZIP_CODE = '97138';
+const USE_ZIP_CODE = true;
+
+const abortControllers = new Map<string, AbortController>();
+const sseClients = new Map<string, Response>();
+
+let globalScrapedData: ScrapedData | null = null;
+
+const PROXY_URL = process.env.PROXY_URL;
+const PROXY_USERNAME = process.env.PROXY_USERNAME;
+const PROXY_PASSWORD = process.env.PROXY_PASSWORD;
+
+if (!PROXY_URL || !PROXY_USERNAME || !PROXY_PASSWORD) {
+  log(chalk.red('Proxy credentials not provided. Exiting...'));
+  process.exit(1);
+}
+
+let totalBytesTransferred = 0;
+
+const logBoth = (message: string, requestId: string) => {
+  console.log(message);
+  const sseRes = sseClients.get(requestId);
+  if (sseRes) {
+    sseRes.write(`data: ${JSON.stringify({ message })}\n\n`);
+  }
+};
+
+const generateCsvString = (items: Result[]): string => {
+  const headers: (keyof Result)[] = [
+    'id',
+    'link',
+    'imageSrc',
+    'currentPrice',
+    'originalPrice',
+    'ending',
+    'discount',
+    'brand',
+    'productName',
+    'storeName',
+    'storeAddress',
+  ];
+
+  const csvRows = [headers.join(',')];
+
+  items.forEach((item) => {
+    const row = headers.map((header) => `"${item[header] ?? ''}"`).join(',');
+    csvRows.push(row);
+  });
+
+  return csvRows.join('\n');
+};
+
+const gotoWithTimeout = async (page: Page, url: string, signal: AbortSignal, timeout = 300000) => {
+  const abortPromise = new Promise((_, reject) => {
+    const abortHandler = () => {
+      signal.removeEventListener('abort', abortHandler);
+      reject(new Error('Navigation aborted because client disconnected'));
+    };
+    signal.addEventListener('abort', abortHandler, { once: true });
+  });
+
+  try {
+    return await Promise.race([
+      page.goto(url, { timeout, waitUntil: 'networkidle0' }),
+      abortPromise,
+    ]);
+  } catch (error) {
+    if (signal.aborted) {
+      throw new Error('Navigation aborted because client disconnected');
+    }
+    throw error;
+  }
+};
+
+puppeteer
+  .use(
+    blockResourcesPlugin({
+      blockedTypes: new Set([
+        'image',
+        'font',
+        'media',
+        'texttrack',
+        'eventsource',
+        'websocket',
+        'manifest',
+        'xhr',
+        'other',
+      ]),
+      interceptResolutionPriority: DEFAULT_INTERCEPT_RESOLUTION_PRIORITY,
+    }),
+  )
+  .use(StealthPlugin())
+  .use(
+    AdblockerPlugin({
+      blockTrackers: true,
+      interceptResolutionPriority: DEFAULT_INTERCEPT_RESOLUTION_PRIORITY,
+    }),
+  );
+
+const scrapeAllUrls = async (
+  urls: string[],
+  signal: AbortSignal,
+  requestId: string,
+  zipCode: number,
+): Promise<{
+  resultsToReturn: Result[];
+  resultsToStore: Result[];
+}> => {
+  if (signal.aborted) {
+    throw new Error('Aborted before opening browser');
+  }
+
+  blockResourcesPlugin().blockedTypes.add('stylesheet');
+
+  logBoth(chalk.blue('Opening browser...'), requestId);
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: [`--proxy-server=${PROXY_URL}`],
+  });
+  let resultsToReturn: Result[] = [];
+  let resultsToStore: Result[] = [];
+  const startTime = nodePerformance.now();
+
+  try {
+    await setZipCode(zipCode, browser, signal, requestId);
+
+    const queue = [...urls];
+    const activePromises = new Set<Promise<void>>();
+
+    const processNext = async () => {
+      while (queue.length > 0 && activePromises.size < MAX_CONCURRENT_PAGES) {
+        if (signal.aborted) {
+          throw new Error('Aborted before processing next page');
+        }
+
+        const targetUrl = queue.shift()!;
+
+        const scrapePromise = scrapeItems(browser, targetUrl, signal, requestId)
+          .then((resultObject) => {
+            resultsToReturn = [...resultsToReturn, ...resultObject.relevantResults];
+            resultsToStore = [...resultsToStore, ...resultObject.allResults];
+          })
+          .catch((error) => {
+            log(chalk.red(`Error scraping ${targetUrl}:`), error);
+          })
+          .finally(() => {
+            activePromises.delete(scrapePromise);
+            processNext();
+          });
+
+        activePromises.add(scrapePromise);
+      }
+    };
+
+    await processNext();
+
+    while (activePromises.size > 0) {
+      await Promise.race(activePromises);
+    }
+
+    log(chalk.green('Scraping finished for all URLs'));
+  } finally {
+    log(chalk.blue('Closing browser...'));
+    await browser.close();
+    log(chalk.blue('Browser closed'));
+  }
+
+  const endTime = nodePerformance.now();
+  const executionTime = (endTime - startTime) / 1000;
+  log(chalk.yellow(`Total execution time: ${executionTime.toFixed(2)} seconds`));
+
+  return { resultsToReturn, resultsToStore };
+};
+
+const getCategories = async (signal: AbortSignal): Promise<Category[]> => {
+  if (signal.aborted) {
+    throw new Error('Aborted');
+  }
+
+  log(chalk.blue('Starting browser...'));
+
+  let categories: Category[] = [];
+
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: [`--proxy-server=${PROXY_URL}`, '--window-size=1280,720'],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.authenticate({
+      username: PROXY_USERNAME,
+      password: PROXY_PASSWORD,
+    });
+    log(chalk.blue('Going to LOAD_URL:', LOAD_URL));
+
+    await gotoWithTimeout(page, LOAD_URL, signal);
+
+    const pageUrl = page.url();
+
+    log(chalk.blue('Arrived at page:', pageUrl));
+
+    if (pageUrl.includes('selectPickupStore')) {
+      await page.waitForSelector('button.white.pa0.mv2.bg-transparent.bn.dib.mh0.pointer > i');
+      await page.click('button.white.pa0.mv2.bg-transparent.bn.dib.mh0.pointer > i');
+      log(chalk.magenta('Closing store selection sidebar'));
+    } else {
+      await page.waitForSelector('.ld.ld-ChevronUp.ml2.dn.db-m');
+      await page.click('.ld.ld-ChevronUp.ml2.dn.db-m', { delay: 200 });
+      log(chalk.magenta('Closing store selection dropdown'));
+    }
+
+    await page.waitForSelector("[link-identifier='Departments'] > i"), { visible: false };
+    await page.click("[link-identifier='Departments'] > i", { delay: 1000 });
+    log(chalk.magenta('Opening departments dropdown'));
+
+    await page.waitForSelector("[link-identifier='viewAllDepartment']");
+
+    const buttons = await page.$$('[link-identifier="viewAllDepartment"] + ul > li > button');
+    log(chalk.blue('Found potential categories:', buttons.length));
+
+    for (let i = 1; i < buttons.length; i++) {
+      const button = buttons[i];
+      await button.click();
+      const departmentList = await page.waitForSelector('.f6.list.ma0.normal.pa0.pb4');
+      if (!departmentList) {
+        log(chalk.red('Department list not found'));
+        continue;
+      }
+      const departmentItems = await departmentList.$$('li > a');
+      const newCategories = await Promise.all(
+        departmentItems.slice(1).map(async (item) => {
+          return await item.evaluate((el) => {
+            return { name: el.textContent ?? 'Categoría', url: el.href };
+          });
+        }),
+      );
+
+      categories = [...categories, ...newCategories];
+    }
+
+    log(chalk.green('Finished getting URLs'));
+  } catch (error) {
+    log(chalk.red('Error getting URLs:', error));
+    return [];
+  } finally {
+    log(chalk.blue('Closing browser...'));
+    await browser.close();
+    log(chalk.blue('Browser closed'));
+  }
+
+  return categories.filter((category) => !category.url.includes('content'));
+};
+
+const scrapeItems = async (
+  browser: Browser,
+  url: string,
+  signal: AbortSignal,
+  requestId: string,
+): Promise<{ allResults: Result[]; relevantResults: Result[] }> => {
+  if (signal.aborted) {
+    throw new Error('Aborted');
+  }
+
+  let allResults: Result[] = [];
+  let relevantResults: Result[] = [];
+  let currentPage = 1;
+  let hasMorePages = true;
+
+  try {
+    while (hasMorePages) {
+      if (signal.aborted) {
+        throw new Error('Aborted');
+      }
+
+      const pageUrl = `${url}${currentPage > 1 ? `?page=${currentPage}` : ''}`;
+      const { allItems, relevantItems, pageNotFound } = await scrapePage(
+        browser,
+        pageUrl,
+        signal,
+        requestId,
+      );
+
+      if (pageNotFound) {
+        hasMorePages = false;
+        logBoth(chalk.magenta(`Stopping scraping for: ${url}`), requestId);
+      } else {
+        allResults = [...allResults, ...allItems];
+        relevantResults = [...relevantResults, ...relevantItems];
+        currentPage++;
+      }
+    }
+
+    return { allResults, relevantResults };
+  } catch (error) {
+    log(`${chalk.red('Error during scraping in scrapeItems:')} ${error}`);
+    throw error;
+  }
+};
+
+const setZipCode = async (
+  zipCode: number,
+  browser: Browser,
+  signal: AbortSignal,
+  requestId: string,
+): Promise<void> => {
+  if (signal.aborted) {
+    throw new Error('Aborted before setting ZIP code');
+  }
+  const page = await browser.newPage();
+  await page.authenticate({
+    username: PROXY_USERNAME,
+    password: PROXY_PASSWORD,
+  });
+
+  logBoth(chalk.blue('Going to base URL:', BASE_URL), requestId);
+  await gotoWithTimeout(page, BASE_URL, signal);
+
+  const url = page.url();
+  logBoth(chalk.blue('Arrived at page:', url), requestId);
+
+  logBoth(chalk.blue('Setting ZIP code...'), requestId);
+
+  if (USE_ZIP_CODE && !url.includes('page')) {
+    if (!url.includes('selectPickupStore')) {
+      await page.waitForSelector("[data-automation-id='fulfillment-address'] > button");
+      await page.click("[data-automation-id='fulfillment-address'] > button");
+      log(chalk.magenta('Clicked on store selection'));
+    }
+
+    log(chalk.magenta('Waiting for input to appear...'));
+    await page.waitForSelector('input.checkout-store-chooser-input', { timeout: 60000 });
+    await page.click('input.checkout-store-chooser-input', { delay: 1000 });
+    await page.$eval(
+      'input.checkout-store-chooser-input',
+      (el: HTMLInputElement) => (el.value = ''),
+    );
+    await page.type('input.checkout-store-chooser-input', zipCode.toString(), { delay: 150 });
+
+    logBoth(chalk.magenta('Typed ZIP code: ', zipCode), requestId);
+    await page.waitForSelector("input[name='pickup-store']");
+    await page.click("input[name='pickup-store']", { delay: 1500 });
+    log(chalk.magenta('Selected store'));
+    await page.waitForSelector('[data-automation-id="save-label"]');
+    await page.click('[data-automation-id="save-label"]', { delay: 1500 });
+    log(chalk.magenta('Saved store'));
+
+    log(chalk.magenta('Waiting for store selection to finish...'));
+    await new Promise((resolve) => setTimeout(resolve, 10000));
+    log(chalk.blue('Store selection finished'));
+
+    const localBytesTransferred = await page.evaluate(() => {
+      const entries = window.performance.getEntriesByType('resource');
+      return entries.reduce((total, entry: any) => {
+        if (entry.transferSize) {
+          return total + entry.transferSize;
+        }
+        return total;
+      }, 0);
+    });
+
+    log(chalk.yellow(`${(localBytesTransferred / 1024 / 1024).toFixed(2)} MB`));
+
+    totalBytesTransferred += localBytesTransferred;
+
+    await page.close();
+  }
+};
+
+const scrapePage = async (
+  browser: Browser,
+  scrapeUrl: string,
+  signal: AbortSignal,
+  requestId: string,
+): Promise<{ allItems: Result[]; relevantItems: Result[]; pageNotFound: boolean }> => {
+  if (signal.aborted) {
+    throw new Error('Aborted');
+  }
+
+  const page = await browser.newPage();
+  await page.authenticate({
+    username: PROXY_USERNAME,
+    password: PROXY_PASSWORD,
+  });
+  logBoth(chalk.cyan(`Going to page: ${scrapeUrl}`), requestId);
+
+  try {
+    await gotoWithTimeout(page, scrapeUrl, signal);
+
+    const pageResult = await page.evaluate(() => {
+      let relevantItems: Result[] = [];
+      let allItems: Result[] = [];
+      const BYPASS_FILTERS = false;
+
+      const addressDivs =
+        document
+          .querySelectorAll("[data-automation-id='fulfillment-address']")[1]
+          ?.querySelectorAll('.f7') ?? [];
+
+      const storeName = addressDivs[0]?.textContent ?? null;
+      const storeAddress = addressDivs[1]?.textContent ?? null;
+
+      const itemStack = document.querySelector("[data-testid='item-stack']");
+      const itemElements = itemStack ? itemStack.querySelectorAll('[data-item-id]') : [];
+      const pageNotFound = document.body.textContent!.includes('No se pudo encontrar esta página.');
+      if (pageNotFound) {
+        return { allItems, relevantItems, pageNotFound };
+      }
+
+      itemElements.forEach((item) => {
+        const id = item.getAttribute('data-item-id');
+        const link = item.querySelector('a')?.href ?? null;
+        const imageSrc = item.querySelector('img')?.src ?? null;
+        const productPriceContainer = item.querySelector("[data-automation-id='product-price']");
+
+        let currentPrice: number | null = null;
+        let originalPrice: number | null = null;
+        let discount: number | null = null;
+        let brand: string | null = null;
+        let productName: string | null = null;
+        let ending: string | null = null;
+
+        if (productPriceContainer) {
+          const currentPriceText = productPriceContainer.children[0]?.textContent ?? null;
+          if (currentPriceText) {
+            ending = currentPriceText.slice(-2);
+            currentPrice = parseFloat(currentPriceText.replace('$', '').replace(',', ''));
+          }
+
+          const originalPriceText = productPriceContainer.children[2]?.textContent ?? null;
+          if (originalPriceText) {
+            originalPrice = parseFloat(originalPriceText.replace('$', '').replace(',', ''));
+          }
+
+          discount =
+            originalPrice && currentPrice
+              ? Number((((originalPrice - currentPrice) / originalPrice) * 100).toFixed(2))
+              : null;
+
+          brand = productPriceContainer.nextElementSibling?.textContent ?? null;
+          productName =
+            productPriceContainer.nextElementSibling?.nextElementSibling?.firstElementChild
+              ?.textContent ?? null;
+        }
+
+        const parsedItem: Result = {
+          id,
+          link,
+          imageSrc,
+          currentPrice,
+          originalPrice,
+          ending,
+          discount,
+          brand,
+          productName,
+          storeName,
+          storeAddress,
+        };
+
+        allItems.push(parsedItem);
+
+        if (
+          BYPASS_FILTERS ||
+          ending === '01' ||
+          ending === '02' ||
+          ending === '03' ||
+          (discount !== null && discount > 40)
+        ) {
+          relevantItems.push(parsedItem);
+        }
+      });
+
+      return { allItems, relevantItems, pageNotFound };
+    });
+
+    logBoth(chalk.green('Scraping finished for page ' + scrapeUrl), requestId);
+
+    const localBytesTransferred = await page.evaluate(() => {
+      const entries = window.performance.getEntriesByType('resource');
+      return entries.reduce((total, entry: any) => {
+        if (entry.transferSize) {
+          return total + entry.transferSize;
+        }
+        return total;
+      }, 0);
+    });
+
+    log(chalk.yellow(`${(localBytesTransferred / 1024 / 1024).toFixed(2)} MB`));
+
+    totalBytesTransferred += localBytesTransferred;
+
+    await page.close();
+    return pageResult;
+  } catch (error) {
+    await page.close();
+    log(chalk.red('Error scraping page:'), error);
+    throw error;
+  }
+};
+
+app.post('/scrape', async (req: Request, res: Response) => {
+  const requestId = req.body.requestId;
+  let zipCode = req.body.zipCode;
+
+  const abortController = new AbortController();
+  abortControllers.set(requestId, abortController);
+
+  log(chalk.yellow('Client requested scrape. requestID:', requestId));
+
+  req.socket.on('close', () => {
+    if (abortControllers.has(requestId)) {
+      log(chalk.red('Client disconnected. Aborting scraping process. requestID:', requestId));
+      abortController.abort();
+      abortControllers.delete(requestId);
+      sseClients.delete(requestId);
+    }
+  });
+
+  try {
+    logBoth(chalk.yellow('Starting scraping process'), requestId);
+    if (zipCode) logBoth(chalk.cyan('ZIP code to use: ' + zipCode), requestId);
+    else {
+      zipCode = ZIP_CODE;
+      logBoth(chalk.cyan('No ZIP code provided. Using default'), requestId);
+    }
+
+    logBoth(chalk.cyan('URLs to scrape:' + req.body.urls), requestId);
+    const { resultsToReturn, resultsToStore } = await scrapeAllUrls(
+      req.body.urls,
+      abortController.signal,
+      requestId,
+      zipCode,
+    );
+    logBoth(chalk.yellow('Scraping process finished'), requestId);
+    log(chalk.yellow(`Total transferred: ${(totalBytesTransferred / 1024 / 1024).toFixed(2)} MB`));
+
+    globalScrapedData = {
+      json: resultsToReturn,
+      csv: generateCsvString(resultsToStore),
+    };
+
+    res.json({
+      success: true,
+      message: 'Scraping completed. Data is ready for retrieval.',
+      requestId,
+    });
+  } catch (error) {
+    log(chalk.red('Error during scraping main:', error));
+    res.status(500).json({ success: false, error: (error as Error).message });
+  }
+});
+
+app.get('/get-data', (req: Request, res: Response) => {
+  if (globalScrapedData) {
+    res.json(globalScrapedData);
+  } else {
+    res.status(404).json({
+      success: false,
+      message: 'No scraped data available. Please run the scraper first.',
+    });
+  }
+});
+
+app.get('/get-categories', async (req: Request, res: Response) => {
+  const requestId = Date.now().toString();
+  const abortController = new AbortController();
+  abortControllers.set(requestId, abortController);
+
+  req.socket.on('close', () => {
+    if (abortControllers.has(requestId)) {
+      log(chalk.red('Client disconnected. Aborting get category process. requestID:', requestId));
+      abortController.abort();
+      abortControllers.delete(requestId);
+    }
+  });
+
+  const categories = await getCategories(abortController.signal);
+  res.json(categories);
+});
+
+app.listen(PORT, () => {
+  log(chalk.green(`Server listening at http://localhost:${PORT}`));
+});
+
+app.get('/logs', (req: Request, res: Response) => {
+  const requestId = Date.now().toString();
+
+  log(chalk.yellow('Client connected to logs endpoint. requestID:', requestId));
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+
+  sseClients.set(requestId, res);
+
+  const returnMessage = JSON.stringify({ message: 'Connected to logs endpoint :)', requestId });
+
+  sseClients.get(requestId)?.write(`data: ${returnMessage}\n\n`);
+
+  req.on('close', () => {
+    log(chalk.red('Client disconnected from logs endpoint. requestID:', requestId));
+    sseClients.delete(requestId);
+  });
+});
+export default app;
