@@ -8,4 +8,5 @@ ENV PUPPETEER_SKIP_DOWNLOAD true\
 COPY package*.json ./
 RUN npm ci
 COPY . .
+RUN npm run build
 CMD ["node", "server.js"]
