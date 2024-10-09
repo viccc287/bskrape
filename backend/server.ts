@@ -9,6 +9,7 @@ import { DEFAULT_INTERCEPT_RESOLUTION_PRIORITY, Browser, Page } from 'puppeteer'
 import chalk from 'chalk';
 import { Result, ScrapedData, Category } from '../shared-types';
 import dotenv from 'dotenv';
+import crypto from 'node:crypto';
 
 const log = console.log;
 const app = express();

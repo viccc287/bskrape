@@ -8,6 +8,7 @@ import { performance as nodePerformance } from 'perf_hooks';
 import { DEFAULT_INTERCEPT_RESOLUTION_PRIORITY } from 'puppeteer';
 import chalk from 'chalk';
 import dotenv from 'dotenv';
+import crypto from 'node:crypto';
 const log = console.log;
 const app = express();
 const PORT = 3000;

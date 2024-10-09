@@ -109,7 +109,7 @@ function log(message: string, color: string = 'white') {
   scrollLogsToBottom();
 }
 
-const SERVER_URL = 'http://localhost:3000';
+const SERVER_URL = 'https://skrapper.onrender.com';
 const loadingSpinner = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="24" height="24">
   <g>
