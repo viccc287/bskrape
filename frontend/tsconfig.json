@@ -19,11 +19,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": [
-    "frontend/src",
-    "backend/server.ts",
-    "shared-types.ts",
-    "frontend/search.ts",
-    "frontend/vite-env.d.ts"
-  ]
+  "exclude": ["node_modules"]
 }

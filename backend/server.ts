@@ -1,11 +1,11 @@
 import express, { Request, Response } from 'express';
 import puppeteer from 'puppeteer-extra';
-/* import blockResourcesPlugin from 'puppeteer-extra-plugin-block-resources';
+import blockResourcesPlugin from 'puppeteer-extra-plugin-block-resources';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import AdblockerPlugin from 'puppeteer-extra-plugin-adblocker'; */
+import AdblockerPlugin from 'puppeteer-extra-plugin-adblocker';
 import cors from 'cors';
 import { performance as nodePerformance } from 'perf_hooks';
-import { DEFAULT_INTERCEPT_RESOLUTION_PRIORITY, Browser, Page } from 'puppeteer-core';
+import { DEFAULT_INTERCEPT_RESOLUTION_PRIORITY, Browser, Page } from 'puppeteer';
 import chalk from 'chalk';
 import { Result, ScrapedData, Category } from '../shared-types';
 import dotenv from 'dotenv';
@@ -98,7 +98,7 @@ const gotoWithTimeout = async (page: Page, url: string, signal: AbortSignal, tim
   }
 };
 
-/* puppeteer
+puppeteer
   .use(
     blockResourcesPlugin({
       blockedTypes: new Set([
@@ -121,7 +121,7 @@ const gotoWithTimeout = async (page: Page, url: string, signal: AbortSignal, tim
       blockTrackers: true,
       interceptResolutionPriority: DEFAULT_INTERCEPT_RESOLUTION_PRIORITY,
     }),
-  ); */
+  );
 
 const scrapeAllUrls = async (
   urls: string[],
@@ -576,7 +576,7 @@ app.post('/scrape', async (req: Request, res: Response) => {
   }
 });
 
-app.get('/get-data', (req: Request, res: Response) => {
+app.get('/get-data', (_req: Request, res: Response) => {
   if (globalScrapedData) {
     res.json(globalScrapedData);
   } else {

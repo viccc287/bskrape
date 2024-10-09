@@ -2,11 +2,12 @@
   "name": "vite-project",
   "private": true,
   "version": "1.0.0",
-  "type": "module",
   "main": "server.ts",
+  "type": "module",
   "scripts": {
-    "start": "tsx server.ts",
-    "dev": "tsx watch server.ts"
+    "start": "node server.js",
+    "dev": "tsx watch server.ts",
+    "build": "tsc"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
@@ -23,7 +24,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
-    "puppeteer-core": "^23.5.1",
+    "puppeteer": "23.5.1",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-adblocker": "^2.13.6",
     "puppeteer-extra-plugin-block-resources": "^2.4.3",
