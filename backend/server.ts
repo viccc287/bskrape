@@ -5,7 +5,7 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import AdblockerPlugin from 'puppeteer-extra-plugin-adblocker'; */
 import cors from 'cors';
 import { performance as nodePerformance } from 'perf_hooks';
-import { DEFAULT_INTERCEPT_RESOLUTION_PRIORITY, Browser, Page } from 'puppeteer';
+import { DEFAULT_INTERCEPT_RESOLUTION_PRIORITY, Browser, Page } from 'puppeteer-core';
 import chalk from 'chalk';
 import { Result, ScrapedData, Category } from '../shared-types';
 import dotenv from 'dotenv';
