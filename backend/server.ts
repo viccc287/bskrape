@@ -1,8 +1,8 @@
 import express, { Request, Response } from 'express';
 import puppeteer from 'puppeteer-extra';
-import blockResourcesPlugin from 'puppeteer-extra-plugin-block-resources';
+/* import blockResourcesPlugin from 'puppeteer-extra-plugin-block-resources';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import AdblockerPlugin from 'puppeteer-extra-plugin-adblocker';
+import AdblockerPlugin from 'puppeteer-extra-plugin-adblocker'; */
 import cors from 'cors';
 import { performance as nodePerformance } from 'perf_hooks';
 import { DEFAULT_INTERCEPT_RESOLUTION_PRIORITY, Browser, Page } from 'puppeteer';
@@ -98,7 +98,7 @@ const gotoWithTimeout = async (page: Page, url: string, signal: AbortSignal, tim
   }
 };
 
-puppeteer
+/* puppeteer
   .use(
     blockResourcesPlugin({
       blockedTypes: new Set([
@@ -121,7 +121,7 @@ puppeteer
       blockTrackers: true,
       interceptResolutionPriority: DEFAULT_INTERCEPT_RESOLUTION_PRIORITY,
     }),
-  );
+  ); */
 
 const scrapeAllUrls = async (
   urls: string[],
@@ -198,12 +198,12 @@ const scrapeAllUrls = async (
   return { resultsToReturn, resultsToStore };
 };
 
-const getCategories = async (signal: AbortSignal): Promise<Category[]> => {
+const getCategories = async (signal: AbortSignal, requestId: string): Promise<Category[]> => {
   if (signal.aborted) {
     throw new Error('Aborted');
   }
 
-  log(chalk.blue('Starting browser...'));
+  logBoth(chalk.blue('Starting browser...'), requestId);
 
   let categories: Category[] = [];
 
@@ -218,13 +218,13 @@ const getCategories = async (signal: AbortSignal): Promise<Category[]> => {
       username: PROXY_USERNAME,
       password: PROXY_PASSWORD,
     });
-    log(chalk.blue('Going to LOAD_URL:', LOAD_URL));
+    logBoth(chalk.blue('Going to LOAD_URL:', LOAD_URL), requestId);
 
     await gotoWithTimeout(page, LOAD_URL, signal);
 
     const pageUrl = page.url();
 
-    log(chalk.blue('Arrived at page:', pageUrl));
+    logBoth(chalk.blue('Arrived at page:', pageUrl), requestId);
 
     if (pageUrl.includes('selectPickupStore')) {
       await page.waitForSelector('button.white.pa0.mv2.bg-transparent.bn.dib.mh0.pointer > i');
@@ -243,7 +243,7 @@ const getCategories = async (signal: AbortSignal): Promise<Category[]> => {
     await page.waitForSelector("[link-identifier='viewAllDepartment']");
 
     const buttons = await page.$$('[link-identifier="viewAllDepartment"] + ul > li > button');
-    log(chalk.blue('Found potential categories:', buttons.length));
+    logBoth(chalk.blue('Found potential categories:', buttons.length), requestId);
 
     for (let i = 1; i < buttons.length; i++) {
       const button = buttons[i];
@@ -265,7 +265,7 @@ const getCategories = async (signal: AbortSignal): Promise<Category[]> => {
       categories = [...categories, ...newCategories];
     }
 
-    log(chalk.green('Finished getting URLs'));
+    logBoth(chalk.green('Finished getting URLs'), requestId);
   } catch (error) {
     log(chalk.red('Error getting URLs:', error));
     return [];
@@ -587,8 +587,14 @@ app.get('/get-data', (req: Request, res: Response) => {
   }
 });
 
-app.get('/get-categories', async (req: Request, res: Response) => {
-  const requestId = Date.now().toString();
+app.get('/get-categories/:requestId', async (req: Request, res: Response) => {
+
+  const requestId = req.params.requestId;
+
+  if (!requestId) {
+    res.status(400).json({ success: false, message: 'Request ID not provided' });
+    return;
+  }
   const abortController = new AbortController();
   abortControllers.set(requestId, abortController);
 
@@ -600,7 +606,7 @@ app.get('/get-categories', async (req: Request, res: Response) => {
     }
   });
 
-  const categories = await getCategories(abortController.signal);
+  const categories = await getCategories(abortController.signal, requestId);
   res.json(categories);
 });
 
@@ -609,7 +615,7 @@ app.listen(PORT, () => {
 });
 
 app.get('/logs', (req: Request, res: Response) => {
-  const requestId = Date.now().toString();
+  const requestId = crypto.randomUUID();
 
   log(chalk.yellow('Client connected to logs endpoint. requestID:', requestId));
 

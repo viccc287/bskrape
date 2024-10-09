@@ -1,5 +1,5 @@
 import './style.css';
-import { Result, ScrapedData, Category } from '../../shared-types';
+import { Result, ScrapedData, Category } from '../shared-types';
 
 let searchButton = document.querySelector('#skrape') as HTMLButtonElement;
 let categoryButton = document.querySelector('#category-button') as HTMLButtonElement;
@@ -24,7 +24,7 @@ const ansiColorCodes: AnsiColorCodes = {
   31: 'color: red;',
   32: 'color: green;',
   33: 'color: yellow;',
-  34: 'color: blue;',
+  34: 'color: rgb(51, 102, 255);',
   35: 'color: magenta;',
   36: 'color: cyan;',
   37: 'color: white;',
@@ -167,7 +167,7 @@ function getCategories(): void {
   categoryButton.disabled = true;
   canFetchCategories = false;
 
-  fetch(`${SERVER_URL}/get-categories`)
+  fetch(`${SERVER_URL}/get-categories/${clientRequestId}`)
     .then((response) => response.json())
     .then((data: Category[]) => {
       localStorage.setItem('categories', JSON.stringify(data));
