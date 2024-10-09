@@ -11,7 +11,7 @@ import dotenv from 'dotenv';
 import crypto from 'node:crypto';
 const log = console.log;
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 dotenv.config();
@@ -108,7 +108,8 @@ const scrapeAllUrls = async (urls, signal, requestId, zipCode) => {
     logBoth(chalk.blue('Opening browser...'), requestId);
     const browser = await puppeteer.launch({
         headless: true,
-        args: [`--proxy-server=${PROXY_URL}`],
+        args: [`--proxy-server=${PROXY_URL}`, '--no-sandbox', '--disable-setuid-sandbox', '--single-process', '--no-zygote'],
+        executablePath: process.env.NODE_ENV === 'production' ? process.env.PUPPETEER_EXECUTABLE_PATH : puppeteer.executablePath(),
     });
     let resultsToReturn = [];
     let resultsToStore = [];
