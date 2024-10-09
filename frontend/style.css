@@ -83,7 +83,7 @@ body {
   height: 100svh;
   display: grid;
 
-  grid-template-rows: 1fr 10svh;
+  grid-template-rows: 1fr 15svh;
 
   grid-template-areas:
     'main'
@@ -228,7 +228,7 @@ body > main > * {
 #results-list {
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 400px));
   gap: 25px;
   list-style: none;
   padding: 0;

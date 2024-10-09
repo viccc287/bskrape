@@ -9,6 +9,25 @@ let clearLogsButton = document.querySelector('#clear-logs') as HTMLButtonElement
 let zipCodeInput = document.querySelector('#zipcode-input') as HTMLInputElement;
 let app = document.querySelector('#app') as HTMLElement;
 
+const SERVER_URLS = ['https://skrapper.onrender.com', 'http://localhost:4000'];
+
+const SERVER_URL = SERVER_URLS[1];
+const loadingSpinner = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="24" height="24">
+  <g>
+    <path fill="#178a1b" d="M25,5A20.14,20.14,0,0,1,45,22.88a2.51,2.51,0,0,0,2.49,2.26h0A2.52,2.52,0,0,0,50,22.33a25.14,25.14,0,0,0-50,0,2.52,2.52,0,0,0,2.5,2.81h0A2.51,2.51,0,0,0,5,22.88,20.14,20.14,0,0,1,25,5Z">
+      <animateTransform 
+        attributeName="transform" 
+        type="rotate" 
+        from="0 25 25"
+        to="360 25 25" 
+        dur="0.8s" 
+        repeatCount="indefinite"/>
+    </path>
+  </g>
+</svg>
+`;
+
 let canFetchCategories = true;
 let canFetchData = true;
 let eventSource: EventSource | null = null;
@@ -115,22 +134,7 @@ function log(message: string, color: string = 'white') {
   scrollLogsToBottom();
 }
 
-const SERVER_URL = 'http://localhost:4000';
-const loadingSpinner = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="24" height="24">
-  <g>
-    <path fill="#178a1b" d="M25,5A20.14,20.14,0,0,1,45,22.88a2.51,2.51,0,0,0,2.49,2.26h0A2.52,2.52,0,0,0,50,22.33a25.14,25.14,0,0,0-50,0,2.52,2.52,0,0,0,2.5,2.81h0A2.51,2.51,0,0,0,5,22.88,20.14,20.14,0,0,1,25,5Z">
-      <animateTransform 
-        attributeName="transform" 
-        type="rotate" 
-        from="0 25 25"
-        to="360 25 25" 
-        dur="0.8s" 
-        repeatCount="indefinite"/>
-    </path>
-  </g>
-</svg>
-`;
+
 
 searchButton.addEventListener('click', (event) => {
   event.preventDefault();
@@ -318,6 +322,7 @@ async function startScraping(): Promise<void> {
         'Error during scraping. Please try again. If the issue persists, try with another zipcode',
         'red',
       );
+      return;
     }
   } catch (error) {
     console.error('Error starting scraping:', error);
@@ -369,6 +374,13 @@ function displayResults(results: Result[]): void {
     return 0;
   });
 
+  function formatNumber(number: number | null): string {
+    if (!number) {
+      return '';
+    }
+    return number.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
   results.forEach((result: Result) => {
     const li = document.createElement('li');
     li.className = 'result-item';
@@ -383,9 +395,9 @@ function displayResults(results: Result[]): void {
           <p class="store-name">${result.storeName}</p>
           <p class="id">${result.id}</p>
           <div class="pricing">
-            ${result.currentPrice ? `<span class="price">$${result.currentPrice}</span>` : ''}
-            ${result.originalPrice ? `<span class="original-price">$${result.originalPrice}</span>` : ''}
-            ${result.discount ? `<span class="discount">-${result.discount}%</span>` : ''}
+            ${result.currentPrice ? `<span class="price">$${formatNumber(result.currentPrice)}</span>` : ''}
+            ${result.originalPrice ? `<span class="original-price">$${formatNumber(result.originalPrice)}</span>` : ''}
+            ${result.discount ? `<span class="discount">-${formatNumber(result.discount)}%</span>` : ''}
           </div>
           ${
             result.ending

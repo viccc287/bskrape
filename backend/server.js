@@ -72,7 +72,8 @@ const gotoWithTimeout = async (page, url, signal, timeout = 300000) => {
             signal.removeEventListener('abort', abortHandler);
             reject(new Error('Navigation aborted because client disconnected'));
         };
-        signal.addEventListener('abort', abortHandler, { once: true });
+        signal.removeEventListener('abort', abortHandler);
+        signal.addEventListener('abort', abortHandler);
     });
     try {
         return await Promise.race([
@@ -365,15 +366,15 @@ const scrapePage = async (browser, scrapeUrl, signal, requestId) => {
                     const currentPriceText = productPriceContainer.children[0]?.textContent ?? null;
                     if (currentPriceText) {
                         ending = currentPriceText.slice(-2);
-                        currentPrice = parseFloat(currentPriceText.replace('$', '').replace(',', ''));
+                        currentPrice = Number(currentPriceText.replace('$', '').replace(',', ''));
                     }
                     const originalPriceText = productPriceContainer.children[2]?.textContent ?? null;
                     if (originalPriceText) {
-                        originalPrice = parseFloat(originalPriceText.replace('$', '').replace(',', ''));
+                        originalPrice = Number(originalPriceText.replace('$', '').replace(',', ''));
                     }
                     discount =
                         originalPrice && currentPrice
-                            ? Number((((originalPrice - currentPrice) / originalPrice) * 100).toFixed(2))
+                            ? ((originalPrice - currentPrice) / originalPrice) * 100
                             : null;
                     brand = productPriceContainer.nextElementSibling?.textContent ?? null;
                     productName =
@@ -436,7 +437,6 @@ app.post('/scrape', async (req, res) => {
             log(chalk.red('Client disconnected. Aborting scraping process. requestID:', requestId));
             abortController.abort();
             abortControllers.delete(requestId);
-            sseClients.delete(requestId);
         }
     });
     try {
@@ -492,6 +492,7 @@ app.get('/get-categories/:requestId', async (req, res) => {
             abortControllers.delete(requestId);
         }
     });
+    logBoth(chalk.yellow('Fetching categories...'), requestId);
     const categories = await getCategories(abortController.signal, requestId);
     res.json(categories);
 });

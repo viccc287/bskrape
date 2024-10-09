@@ -90,7 +90,8 @@ const gotoWithTimeout = async (page: Page, url: string, signal: AbortSignal, tim
       signal.removeEventListener('abort', abortHandler);
       reject(new Error('Navigation aborted because client disconnected'));
     };
-    signal.addEventListener('abort', abortHandler, { once: true });
+    signal.removeEventListener('abort', abortHandler);
+    signal.addEventListener('abort', abortHandler);
   });
 
   try {
@@ -480,17 +481,17 @@ const scrapePage = async (
           const currentPriceText = productPriceContainer.children[0]?.textContent ?? null;
           if (currentPriceText) {
             ending = currentPriceText.slice(-2);
-            currentPrice = parseFloat(currentPriceText.replace('$', '').replace(',', ''));
+            currentPrice = Number(currentPriceText.replace('$', '').replace(',', ''));
           }
 
           const originalPriceText = productPriceContainer.children[2]?.textContent ?? null;
           if (originalPriceText) {
-            originalPrice = parseFloat(originalPriceText.replace('$', '').replace(',', ''));
+            originalPrice = Number(originalPriceText.replace('$', '').replace(',', ''));
           }
 
           discount =
             originalPrice && currentPrice
-              ? Number((((originalPrice - currentPrice) / originalPrice) * 100).toFixed(2))
+              ? ((originalPrice - currentPrice) / originalPrice) * 100
               : null;
 
           brand = productPriceContainer.nextElementSibling?.textContent ?? null;
@@ -568,7 +569,6 @@ app.post('/scrape', async (req: Request, res: Response) => {
       log(chalk.red('Client disconnected. Aborting scraping process. requestID:', requestId));
       abortController.abort();
       abortControllers.delete(requestId);
-      sseClients.delete(requestId);
     }
   });
 
@@ -634,6 +634,8 @@ app.get('/get-categories/:requestId', async (req: Request, res: Response) => {
       abortControllers.delete(requestId);
     }
   });
+
+  logBoth(chalk.yellow('Fetching categories...'), requestId);
 
   const categories = await getCategories(abortController.signal, requestId);
   res.json(categories);
