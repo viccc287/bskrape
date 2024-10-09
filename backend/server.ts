@@ -9,10 +9,15 @@ import { DEFAULT_INTERCEPT_RESOLUTION_PRIORITY, Browser, Page } from 'puppeteer'
 import chalk from 'chalk';
 import { Result, ScrapedData, Category } from '../shared-types';
 import crypto from 'node:crypto';
+import dotenv from 'dotenv';
 
 const log = console.log;
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+if (process.env.NODE_ENV === 'development') {
+  dotenv.config();
+}
 
 app.use(cors());
 app.use(express.json());
@@ -36,7 +41,7 @@ const PROXY_PASSWORD = process.env.PROXY_PASSWORD;
 const PUPPETEER_EXECUTABLE_PATH = process.env.PUPPETEER_EXECUTABLE_PATH;
 
 if (!PUPPETEER_EXECUTABLE_PATH) {
-  log(chalk.red('Executable path not provided. Exiting...'));
+  log(chalk.red('Puppeteer executable path not provided. Exiting...'));
   process.exit(1);
 }
 if (!PROXY_URL || !PROXY_USERNAME || !PROXY_PASSWORD) {

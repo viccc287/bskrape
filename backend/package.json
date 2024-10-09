@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "tsx watch server.ts",
+    "dev": "set \"NODE_ENV=development\" && tsx watch server.ts",
     "build": "tsc"
   },
   "devDependencies": {

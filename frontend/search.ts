@@ -11,7 +11,7 @@ let app = document.querySelector('#app') as HTMLElement;
 
 let canFetchCategories = true;
 let canFetchData = true;
-let eventsource: EventSource | null = null;
+let eventSource: EventSource | null = null;
 
 let clientRequestId: string | null = null;
 
@@ -93,8 +93,8 @@ document.addEventListener('DOMContentLoaded', () => {
     displayCategories(JSON.parse(localStorage.getItem('categories') as string));
   }
 
-  eventsource = new EventSource(`${SERVER_URL}/logs`);
-  eventsource.onmessage = (event) => {
+  eventSource = new EventSource(`${SERVER_URL}/logs`);
+  eventSource.onmessage = (event) => {
     const { message, requestId } = JSON.parse(event.data);
     if (requestId) clientRequestId = requestId;
     const coloredHtml = ansiToHtml(message);
@@ -104,12 +104,18 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 });
 
+window.addEventListener('beforeunload', () => {
+  if (eventSource) {
+    eventSource.close();
+  }
+});
+
 function log(message: string, color: string = 'white') {
   logsContainer.innerHTML += `<span style="color: ${color}">${message}</span><br>`;
   scrollLogsToBottom();
 }
 
-const SERVER_URL = 'https://skrapper.onrender.com';
+const SERVER_URL = 'http://localhost:4000';
 const loadingSpinner = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="24" height="24">
   <g>
