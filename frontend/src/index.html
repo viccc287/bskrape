@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SKRAPPER v1</title>
+  </head>
+  <body>
+    <main>
+      <form id="scrape-form">
+        <input type="text" id="zipcode-input" placeholder="Enter zipcode" />
+        <button type="button" id="category-button">Fetch categories</button>
+        <button type="button" id="skrape">SKRAPE</button>
+      </form>
+      <div id="app"></div>
+      <section id="button-section">
+        <button id="hide-logs">Hide logs</button>
+        <button id="clear-logs">Clear logs</button>
+      </section>
+    </main>
+    <code id="logs"></code>
+    <script type="module" src="/src/search.ts"></script>
+  </body>
+</html>

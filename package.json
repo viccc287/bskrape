@@ -1,13 +1,13 @@
 {
   "name": "vite-project",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "serve": "node_modules/.bin/nodemon.js server.js"
+    "start": "tsx server.js"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

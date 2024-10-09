@@ -19,5 +19,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "server.ts"]
+  "include": ["frontend/src", "backend/server.ts", "shared-types.ts"]
 }
