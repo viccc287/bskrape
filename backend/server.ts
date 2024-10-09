@@ -8,7 +8,6 @@ import { performance as nodePerformance } from 'perf_hooks';
 import { DEFAULT_INTERCEPT_RESOLUTION_PRIORITY, Browser, Page } from 'puppeteer';
 import chalk from 'chalk';
 import { Result, ScrapedData, Category } from '../shared-types';
-import dotenv from 'dotenv';
 import crypto from 'node:crypto';
 
 const log = console.log;
@@ -17,8 +16,6 @@ const PORT = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
-
-dotenv.config();
 
 const BASE_URL = 'https://despensa.bodegaaurrera.com.mx';
 const LOAD_URL =
@@ -36,7 +33,12 @@ let globalScrapedData: ScrapedData | null = null;
 const PROXY_URL = process.env.PROXY_URL;
 const PROXY_USERNAME = process.env.PROXY_USERNAME;
 const PROXY_PASSWORD = process.env.PROXY_PASSWORD;
+const PUPPETEER_EXECUTABLE_PATH = process.env.PUPPETEER_EXECUTABLE_PATH;
 
+if (!PUPPETEER_EXECUTABLE_PATH) {
+  log(chalk.red('Executable path not provided. Exiting...'));
+  process.exit(1);
+}
 if (!PROXY_URL || !PROXY_USERNAME || !PROXY_PASSWORD) {
   log(chalk.red('Proxy credentials not provided. Exiting...'));
   process.exit(1);
@@ -142,8 +144,11 @@ const scrapeAllUrls = async (
   logBoth(chalk.blue('Opening browser...'), requestId);
   const browser = await puppeteer.launch({
     headless: true,
-    args: [`--proxy-server=${PROXY_URL}`, '--no-sandbox', '--disable-setuid-sandbox', '--single-process', '--no-zygote'],
-    executablePath: process.env.NODE_ENV === 'production' ? process.env.PUPPETEER_EXECUTABLE_PATH : puppeteer.executablePath(),
+    args: [`--proxy-server=${PROXY_URL}`],
+    executablePath:
+      process.env.NODE_ENV === 'production'
+        ? PUPPETEER_EXECUTABLE_PATH
+        : puppeteer.executablePath(),
   });
   let resultsToReturn: Result[] = [];
   let resultsToStore: Result[] = [];
@@ -211,8 +216,11 @@ const getCategories = async (signal: AbortSignal, requestId: string): Promise<Ca
 
   const browser = await puppeteer.launch({
     headless: true,
-    args: [`--proxy-server=${PROXY_URL}`, '--window-size=1280,720', '--no-sandbox', '--disable-setuid-sandbox', '--single-process', '--no-zygote'],
-    executablePath: process.env.NODE_ENV === 'production' ? process.env.PUPPETEER_EXECUTABLE_PATH : puppeteer.executablePath(),
+    args: [`--proxy-server=${PROXY_URL}`, '--window-size=1280,720'],
+    executablePath:
+      process.env.NODE_ENV === 'production'
+        ? PUPPETEER_EXECUTABLE_PATH
+        : puppeteer.executablePath(),
   });
 
   try {
@@ -226,6 +234,10 @@ const getCategories = async (signal: AbortSignal, requestId: string): Promise<Ca
     await gotoWithTimeout(page, LOAD_URL, signal);
 
     const pageUrl = page.url();
+
+    if (!pageUrl.includes(BASE_URL)) {
+      throw new Error('Redirected to external page');
+    }
 
     logBoth(chalk.blue('Arrived at page:', pageUrl), requestId);
 
@@ -346,6 +358,11 @@ const setZipCode = async (
   await gotoWithTimeout(page, BASE_URL, signal);
 
   const url = page.url();
+
+  if (!url.includes(BASE_URL)) {
+    throw new Error('Redirected to external page');
+  }
+
   logBoth(chalk.blue('Arrived at page:', url), requestId);
 
   logBoth(chalk.blue('Setting ZIP code...'), requestId);
@@ -415,6 +432,11 @@ const scrapePage = async (
 
   try {
     await gotoWithTimeout(page, scrapeUrl, signal);
+
+    const url = page.url();
+    if (!url.includes(BASE_URL)) {
+      throw new Error('Redirected to external page');
+    }
 
     const pageResult = await page.evaluate(() => {
       let relevantItems: Result[] = [];
