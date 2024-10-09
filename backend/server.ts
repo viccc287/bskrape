@@ -209,7 +209,8 @@ const getCategories = async (signal: AbortSignal, requestId: string): Promise<Ca
 
   const browser = await puppeteer.launch({
     headless: true,
-    args: [`--proxy-server=${PROXY_URL}`, '--window-size=1280,720'],
+    args: [`--proxy-server=${PROXY_URL}`, '--window-size=1280,720', '--no-sandbox', '--disable-setuid-sandbox', '--single-process', '--no-zygote'],
+    executablePath: process.env.NODE_ENV === 'production' ? process.env.PUPPETEER_EXECUTABLE_PATH : puppeteer.executablePath(),
   });
 
   try {
@@ -588,7 +589,6 @@ app.get('/get-data', (_req: Request, res: Response) => {
 });
 
 app.get('/get-categories/:requestId', async (req: Request, res: Response) => {
-
   const requestId = req.params.requestId;
 
   if (!requestId) {
