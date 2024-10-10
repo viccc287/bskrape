@@ -180,7 +180,7 @@ const scrapeAllUrls = async (
             resultsToStore = [...resultsToStore, ...resultObject.allResults];
           })
           .catch((error) => {
-            log(chalk.red(`Error scraping ${targetUrl}:`), error);
+            logBoth(chalk.red(`Error scraping ${targetUrl}: `, error), requestId);
           })
           .finally(() => {
             activePromises.delete(scrapePromise);
@@ -197,16 +197,16 @@ const scrapeAllUrls = async (
       await Promise.race(activePromises);
     }
 
-    log(chalk.green('Scraping finished for all URLs'));
-  } finally {
-    log(chalk.blue('Closing browser...'));
+    logBoth(chalk.green('Scraping finished for all URLs'), requestId);
+    } finally {
+    logBoth(chalk.blue('Closing browser...'), requestId);
     await browser.close();
-    log(chalk.blue('Browser closed'));
-  }
+    logBoth(chalk.blue('Browser closed'), requestId);
+    }
 
   const endTime = nodePerformance.now();
   const executionTime = (endTime - startTime) / 1000;
-  log(chalk.yellow(`Total execution time: ${executionTime.toFixed(2)} seconds`));
+  logBoth(chalk.yellow(`Total execution time: ${executionTime.toFixed(2)} seconds`), requestId);
 
   return { resultsToReturn, resultsToStore };
 };
@@ -250,16 +250,16 @@ const getCategories = async (signal: AbortSignal, requestId: string): Promise<Ca
     if (pageUrl.includes('selectPickupStore')) {
       await page.waitForSelector('button.white.pa0.mv2.bg-transparent.bn.dib.mh0.pointer > i');
       await page.click('button.white.pa0.mv2.bg-transparent.bn.dib.mh0.pointer > i');
-      log(chalk.magenta('Closing store selection sidebar'));
+      logBoth(chalk.magenta('Closing store selection sidebar'), requestId);
     } else {
       await page.waitForSelector('.ld.ld-ChevronUp.ml2.dn.db-m');
       await page.click('.ld.ld-ChevronUp.ml2.dn.db-m', { delay: 200 });
-      log(chalk.magenta('Closing store selection dropdown'));
+      logBoth(chalk.magenta('Closing store selection dropdown'), requestId);
     }
 
     await page.waitForSelector("[link-identifier='Departments'] > i"), { visible: false };
     await page.click("[link-identifier='Departments'] > i", { delay: 1000 });
-    log(chalk.magenta('Opening departments dropdown'));
+    logBoth(chalk.magenta('Opening departments dropdown'), requestId);
 
     await page.waitForSelector("[link-identifier='viewAllDepartment']");
 
@@ -271,7 +271,7 @@ const getCategories = async (signal: AbortSignal, requestId: string): Promise<Ca
       await button.click();
       const departmentList = await page.waitForSelector('.f6.list.ma0.normal.pa0.pb4');
       if (!departmentList) {
-        log(chalk.red('Department list not found'));
+        logBoth(chalk.red('Department list not found'), requestId);
         continue;
       }
       const departmentItems = await departmentList.$$('li > a');
@@ -288,12 +288,12 @@ const getCategories = async (signal: AbortSignal, requestId: string): Promise<Ca
 
     logBoth(chalk.green('Finished getting URLs'), requestId);
   } catch (error) {
-    log(chalk.red('Error getting URLs:', error));
+    logBoth(chalk.red('Error getting URLs:', error), requestId);
     return [];
-  } finally {
-    log(chalk.blue('Closing browser...'));
+    } finally {
+    logBoth(chalk.blue('Closing browser...'), requestId);
     await browser.close();
-    log(chalk.blue('Browser closed'));
+    logBoth(chalk.blue('Browser closed'), requestId);
   }
 
   return categories.filter((category) => !category.url.includes('content'));
@@ -340,7 +340,7 @@ const scrapeItems = async (
 
     return { allResults, relevantResults };
   } catch (error) {
-    log(`${chalk.red('Error during scraping in scrapeItems:')} ${error}`);
+    logBoth(`${chalk.red('Error during scraping in scrapeItems:')} ${error}`, requestId);
     throw error;
   }
 };
@@ -377,29 +377,30 @@ const setZipCode = async (
     if (!url.includes('selectPickupStore')) {
       await page.waitForSelector("[data-automation-id='fulfillment-address'] > button");
       await page.click("[data-automation-id='fulfillment-address'] > button");
-      log(chalk.magenta('Clicked on store selection'));
-    }
+      logBoth(chalk.magenta('Clicked on store selection'), requestId);
+        }
 
-    log(chalk.magenta('Waiting for input to appear...'));
-    await page.waitForSelector('input.checkout-store-chooser-input', { timeout: 60000 });
-    await page.click('input.checkout-store-chooser-input', { delay: 1000 });
-    await page.$eval(
+        logBoth(chalk.magenta('Waiting for input to appear...'), requestId);
+        await page.waitForSelector('input.checkout-store-chooser-input', { timeout: 60000 });
+        await page.click('input.checkout-store-chooser-input', { delay: 1000 });
+        await page.$eval(
       'input.checkout-store-chooser-input',
       (el: HTMLInputElement) => (el.value = ''),
-    );
-    await page.type('input.checkout-store-chooser-input', zipCode.toString(), { delay: 150 });
+        );
+        await page.type('input.checkout-store-chooser-input', zipCode.toString(), { delay: 150 });
 
-    logBoth(chalk.magenta('Typed ZIP code: ', zipCode), requestId);
-    await page.waitForSelector("input[name='pickup-store']");
-    await page.click("input[name='pickup-store']", { delay: 1500 });
-    log(chalk.magenta('Selected store'));
-    await page.waitForSelector('[data-automation-id="save-label"]');
-    await page.click('[data-automation-id="save-label"]', { delay: 1500 });
-    log(chalk.magenta('Saved store'));
+        logBoth(chalk.magenta('Typed ZIP code: ', zipCode), requestId);
+        await page.waitForSelector("input[name='pickup-store']");
+        await page.click("input[name='pickup-store']", { delay: 1500 });
+        logBoth(chalk.magenta('Selected store'), requestId);
+        await page.waitForSelector('[data-automation-id="save-label"]');
+        await page.click('[data-automation-id="save-label"]', { delay: 1500 });
+        logBoth(chalk.magenta('Saved store'), requestId);
 
-    log(chalk.magenta('Waiting for store selection to finish...'));
-    await new Promise((resolve) => setTimeout(resolve, 10000));
-    log(chalk.blue('Store selection finished'));
+        const waitDuration = 12000;
+        logBoth(chalk.magenta(`Waiting for store selection to finish... (${waitDuration / 1000} seconds)`), requestId);
+        await new Promise((resolve) => setTimeout(resolve, waitDuration));
+        logBoth(chalk.blue('Store selection finished'), requestId);
 
     const localBytesTransferred = await page.evaluate(() => {
       const entries = window.performance.getEntriesByType('resource');
@@ -411,7 +412,7 @@ const setZipCode = async (
       }, 0);
     });
 
-    log(chalk.yellow(`${(localBytesTransferred / 1024 / 1024).toFixed(2)} MB`));
+    logBoth(chalk.yellow(`${(localBytesTransferred / 1024 / 1024).toFixed(2)} MB`), requestId);
 
     totalBytesTransferred += localBytesTransferred;
 
@@ -542,7 +543,7 @@ const scrapePage = async (
       }, 0);
     });
 
-    log(chalk.yellow(`${(localBytesTransferred / 1024 / 1024).toFixed(2)} MB`));
+    logBoth(chalk.yellow(`${(localBytesTransferred / 1024 / 1024).toFixed(2)} MB`), requestId);
 
     totalBytesTransferred += localBytesTransferred;
 
@@ -550,7 +551,7 @@ const scrapePage = async (
     return pageResult;
   } catch (error) {
     await page.close();
-    log(chalk.red('Error scraping page:'), error);
+    logBoth(chalk.red('Error scraping page:', error), requestId);
     throw error;
   }
 };
@@ -588,8 +589,10 @@ app.post('/scrape', async (req: Request, res: Response) => {
       zipCode,
     );
     logBoth(chalk.yellow('Scraping process finished'), requestId);
-    log(chalk.yellow(`Total transferred: ${(totalBytesTransferred / 1024 / 1024).toFixed(2)} MB`));
+    logBoth(chalk.yellow(`Total transferred: ${(totalBytesTransferred / 1024 / 1024).toFixed(2)} MB`), requestId);
 
+    logBoth(chalk.green('Total items found: ' + resultsToStore.length), requestId);
+    logBoth(chalk.green('Relevant items found: ' + resultsToReturn.length), requestId);
     globalScrapedData = {
       json: resultsToReturn,
       csv: generateCsvString(resultsToStore),
@@ -601,7 +604,7 @@ app.post('/scrape', async (req: Request, res: Response) => {
       requestId,
     });
   } catch (error) {
-    log(chalk.red('Error during scraping main:', error));
+    logBoth(chalk.red('Error during scraping main:', error), requestId);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });

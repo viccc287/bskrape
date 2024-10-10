@@ -7,6 +7,9 @@ let logsContainer = document.querySelector('#logs') as HTMLElement;
 let hideLogsButton = document.querySelector('#hide-logs') as HTMLButtonElement;
 let clearLogsButton = document.querySelector('#clear-logs') as HTMLButtonElement;
 let zipCodeInput = document.querySelector('#zipcode-input') as HTMLInputElement;
+let categoriesContainer = document.querySelector('#categories') as HTMLDivElement;
+  let resultsList = document.getElementById('results-list') as HTMLUListElement;
+
 let app = document.querySelector('#app') as HTMLElement;
 
 const SERVER_URLS = ['https://skrapper.onrender.com', 'http://localhost:4000'];
@@ -134,8 +137,6 @@ function log(message: string, color: string = 'white') {
   scrollLogsToBottom();
 }
 
-
-
 searchButton.addEventListener('click', (event) => {
   event.preventDefault();
   startScraping();
@@ -195,9 +196,9 @@ function getCategories(): void {
 }
 
 function displayCategories(categories: Category[]): void {
-  app.innerHTML = `
+  categoriesContainer.innerHTML = `
     <div id="categories-form">
-      <input type="text" id="search-input" placeholder="Search categories" />
+      <input type="text" id="search-input" placeholder="Search categories to skrape" />
       <button type="button" id="toggle-all-btn">Select all ${categories.length}</button>
       <ul id="categories-list"></ul>
     </div>
@@ -364,9 +365,6 @@ function displayResults(results: Result[]): void {
     return;
   }
 
-  app.innerHTML = '<ul id="results-list"></ul>';
-  const resultsList = document.getElementById('results-list') as HTMLUListElement;
-
   results.sort((a, b) => {
     if (a.currentPrice && b.currentPrice) {
       return a.currentPrice - b.currentPrice;
@@ -380,6 +378,8 @@ function displayResults(results: Result[]): void {
     }
     return number.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+
+  resultsList.innerHTML = '';
 
   results.forEach((result: Result) => {
     const li = document.createElement('li');
@@ -416,17 +416,25 @@ function displayResults(results: Result[]): void {
 function addDownloadButtons(data: ScrapedData): void {
   const buttonSection = document.querySelector('#button-section') as HTMLElement;
 
+  const downloadButtonExists = document.getElementById('download-csv');
+  if (downloadButtonExists) {
+    downloadButtonExists.remove();
+  }
   const downloadCsvButton = document.createElement('button');
   downloadCsvButton.id = 'download-csv';
   downloadCsvButton.className = 'download-button';
-  downloadCsvButton.textContent = 'Download CSV';
+  downloadCsvButton.textContent = 'Download full CSV';
   buttonSection.appendChild(downloadCsvButton);
 
   if (data.json.length !== 0) {
+    const downloadButtonExists = document.getElementById('download-json');
+    if (downloadButtonExists) {
+      downloadButtonExists.remove();
+    }
     const downloadJsonButton = document.createElement('button');
     downloadJsonButton.id = 'download-json';
     downloadJsonButton.className = 'download-button';
-    downloadJsonButton.textContent = 'Download JSON';
+    downloadJsonButton.textContent = 'Download relevant JSON';
     buttonSection.appendChild(downloadJsonButton);
 
     document.getElementById('download-json')?.addEventListener('click', () => {
