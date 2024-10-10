@@ -29,6 +29,7 @@ console.log(
 log(
   "\r\n              _                         \r\n__      _____| | ___ __ __ _ _ __   ___ \r\n\\ \\ /\\ / / __| |/ / '__/ _` | '_ \\ / _ \\\r\n \\ V  V /\\__ \\   <| | | (_| | |_) |  __/\r\n  \\_/\\_/ |___/_|\\_\\_|  \\__,_| .__/ \\___|\r\n                            |_|         \r\n",
 );
+
 if (localStorage.getItem('categories')) {
   log('Categories loaded from local storage', 'yellow');
   displayCategories(JSON.parse(localStorage.getItem('categories') as string));
@@ -64,7 +65,7 @@ for (const i in SERVER_CONFIG) {
   try {
     const response = await fetch(`${SERVER_CONFIG[i].url}/ping`, {
       method: 'GET',
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(20000),
     });
 
     if (response.ok) {

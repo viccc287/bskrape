@@ -29,7 +29,7 @@
   height: 10px;
 }
 
-code {
+#logs {
   background-color: black;
   width: 100%;
   height: 100%;
@@ -39,9 +39,11 @@ code {
   transition-property: opacity;
   transition-duration: 0.5s;
   grid-area: logs;
+  font-size: 0.8rem;
+
 }
 
-code > span {
+#logs > span {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.8rem;
   white-space: pre-wrap;
@@ -71,12 +73,12 @@ code > span {
   background-color: #333;
 }
 
-code::-webkit-scrollbar-thumb {
+#logs::-webkit-scrollbar-thumb {
   background-color: rgb(46, 46, 46);
   border-radius: 5px;
 }
 
-code::-webkit-scrollbar-track {
+#logs::-webkit-scrollbar-track {
   background-color: black;
 }
 

@@ -66,14 +66,18 @@ const generateCsvString = (items) => {
     });
     return csvRows.join('\n');
 };
+const abortHandlers = new WeakMap();
 const gotoWithTimeout = async (page, url, signal, timeout = 300000) => {
     const abortPromise = new Promise((_, reject) => {
-        const abortHandler = () => {
+        let abortHandler = abortHandlers.get(signal);
+        if (abortHandler) {
             signal.removeEventListener('abort', abortHandler);
-            reject(new Error('Navigation aborted because client disconnected'));
+        }
+        abortHandler = () => {
+            reject(new Error('Goto aborted because client disconnected'));
         };
-        signal.removeEventListener('abort', abortHandler);
-        signal.addEventListener('abort', abortHandler);
+        abortHandlers.set(signal, abortHandler);
+        signal.addEventListener('abort', abortHandler, { once: true });
     });
     try {
         return await Promise.race([
