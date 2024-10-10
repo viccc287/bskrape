@@ -13,6 +13,7 @@ let serverSelect = document.querySelector('#server-select') as HTMLSelectElement
 
 skrapeButton.disabled = true;
 categoryButton.disabled = true;
+serverSelect.disabled = true;
 let canFetchCategories = false;
 let canFetchData = false;
 
@@ -20,6 +21,20 @@ let eventSource: EventSource | null = null;
 let clientRequestId: string | null = null;
 let availableServers = [];
 let selectedServer: string | null = null;
+let selectedCategoryURLs: string[] = [];
+
+console.log(
+  "\r\n              _                         \r\n__      _____| | ___ __ __ _ _ __   ___ \r\n\\ \\ /\\ / / __| |/ / '__/ _` | '_ \\ / _ \\\r\n \\ V  V /\\__ \\   <| | | (_| | |_) |  __/\r\n  \\_/\\_/ |___/_|\\_\\_|  \\__,_| .__/ \\___|\r\n                            |_|         \r\n",
+);
+log(
+  "\r\n              _                         \r\n__      _____| | ___ __ __ _ _ __   ___ \r\n\\ \\ /\\ / / __| |/ / '__/ _` | '_ \\ / _ \\\r\n \\ V  V /\\__ \\   <| | | (_| | |_) |  __/\r\n  \\_/\\_/ |___/_|\\_\\_|  \\__,_| .__/ \\___|\r\n                            |_|         \r\n",
+);
+if (localStorage.getItem('categories')) {
+  log('Categories loaded from local storage', 'yellow');
+  displayCategories(JSON.parse(localStorage.getItem('categories') as string));
+} else {
+  log('No categories loaded from local storage, run fetch categories', 'yellow');
+}
 
 const SERVER_CONFIG: {
   [key: string]: {
@@ -66,7 +81,7 @@ for (const i in SERVER_CONFIG) {
 }
 
 if (availableServers.length === 0) {
-  log('No servers available. Please reload or try again later', 'red');
+  log('No servers available. Please reload or try again later', 'darkred');
   skrapeButton.disabled = true;
   categoryButton.disabled = true;
   serverSelect.disabled = true;
@@ -86,6 +101,7 @@ if (availableServers.length === 0) {
   canFetchData = true;
   skrapeButton.disabled = false;
   categoryButton.disabled = false;
+  serverSelect.disabled = false;
 }
 
 serverSelect.addEventListener('change', () => {
@@ -102,6 +118,7 @@ serverSelect.addEventListener('change', () => {
     console.log(message);
     scrollLogsToBottom();
   };
+  log(`Selected server changed`, 'yellow');
 });
 
 const loadingSpinner = `
@@ -193,12 +210,6 @@ function scrollLogsToBottom() {
 hideLogsButton.addEventListener('click', toggleLogs);
 clearLogsButton.addEventListener('click', clearLogs);
 
-document.addEventListener('DOMContentLoaded', () => {
-  if (localStorage.getItem('categories')) {
-    displayCategories(JSON.parse(localStorage.getItem('categories') as string));
-  }
-});
-
 window.addEventListener('beforeunload', () => {
   if (eventSource) {
     eventSource.close();
@@ -239,8 +250,6 @@ function formatTime(time: number) {
   const seconds = time % 60;
   return `${minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
 }
-
-let selectedCategoryURLs: string[] = [];
 
 function getCategories(): void {
   if (!selectedServer) {
