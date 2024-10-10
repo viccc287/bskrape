@@ -9,12 +9,12 @@ import { DEFAULT_INTERCEPT_RESOLUTION_PRIORITY } from 'puppeteer';
 import chalk from 'chalk';
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
-const log = console.log;
-const app = express();
-const PORT = process.env.PORT || 4000;
 if (process.env.NODE_ENV === 'development') {
     dotenv.config();
 }
+const log = console.log;
+const app = express();
+const PORT = Number(process.env.PORT) || 4000;
 app.use(cors());
 app.use(express.json());
 const BASE_URL = 'https://despensa.bodegaaurrera.com.mx';
@@ -499,9 +499,6 @@ app.get('/get-categories/:requestId', async (req, res) => {
     const categories = await getCategories(abortController.signal, requestId);
     res.json(categories);
 });
-app.listen(PORT, () => {
-    log(chalk.green(`Server listening at http://localhost:${PORT}`));
-});
 app.get('/logs', (req, res) => {
     const requestId = crypto.randomUUID();
     log(chalk.yellow('Client connected to logs endpoint. requestID:', requestId));
@@ -517,5 +514,12 @@ app.get('/logs', (req, res) => {
         log(chalk.red('Client disconnected from logs endpoint. requestID:', requestId));
         sseClients.delete(requestId);
     });
+});
+app.get('/ping', (_req, res) => {
+    log(chalk.green('Ping received at:', new Date().toISOString()));
+    res.json({ success: true });
+});
+app.listen(PORT, () => {
+    log(chalk.green(`Server listening at port ${PORT}`));
 });
 export default app;
