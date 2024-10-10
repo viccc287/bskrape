@@ -434,8 +434,19 @@ a {
     grid-template-columns: 1fr;
   }
 
+  #scrape-form{
+    flex-direction: column;
+  }
+  #button-section {
+    flex-direction: row;
+  }
+
   :root {
     --padding: 20px;
+  }
+
+  #logs span, #logs {
+    font-size: 0.6rem;
   }
 
   body > main {
@@ -445,6 +456,10 @@ a {
       'scrape-form'
       'app'
       'buttons';
+  }
+
+  body{
+    grid-template-rows: 1fr 10svh;
   }
 
   .product-image-container {

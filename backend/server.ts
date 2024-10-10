@@ -11,13 +11,15 @@ import { Result, ScrapedData, Category } from '../shared-types';
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
 
-const log = console.log;
-const app = express();
-const PORT = process.env.PORT || 4000;
 
 if (process.env.NODE_ENV === 'development') {
   dotenv.config();
 }
+
+const log = console.log;
+const app = express();
+const PORT = Number(process.env.PORT) || 4000;
+
 
 app.use(cors());
 app.use(express.json());
@@ -644,9 +646,7 @@ app.get('/get-categories/:requestId', async (req: Request, res: Response) => {
   res.json(categories);
 });
 
-app.listen(PORT, () => {
-  log(chalk.green(`Server listening at http://localhost:${PORT}`));
-});
+
 
 app.get('/logs', (req: Request, res: Response) => {
   const requestId = crypto.randomUUID();
@@ -669,5 +669,9 @@ app.get('/logs', (req: Request, res: Response) => {
     log(chalk.red('Client disconnected from logs endpoint. requestID:', requestId));
     sseClients.delete(requestId);
   });
+});
+
+app.listen(PORT, () => {
+  log(chalk.green(`Server listening at port ${PORT}`));
 });
 export default app;

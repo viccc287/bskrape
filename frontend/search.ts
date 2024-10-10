@@ -12,9 +12,12 @@ let resultsList = document.getElementById('results-list') as HTMLUListElement;
 
 let app = document.querySelector('#app') as HTMLElement;
 
-const SERVER_URLS = ['https://skrapper.onrender.com', 'http://localhost:4000'];
+const SERVER_URLS = [
+  'https://skrapper.onrender.com',
+  'http://localhost:4000',
+];
 
-const SERVER_URL = SERVER_URLS[1];
+const SERVER_URL = SERVER_URLS[0];
 const loadingSpinner = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="24" height="24">
   <g>
