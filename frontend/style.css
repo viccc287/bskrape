@@ -66,6 +66,7 @@ code > span {
 }
 
 #hide-logs:hover,
+#clear-logs:hover,
 .download-button:hover {
   background-color: #333;
 }
@@ -100,7 +101,6 @@ body {
   width: 100%;
   max-height: 400px;
 }
-
 
 body > main {
   display: grid;
@@ -429,15 +429,35 @@ a {
   color: white;
 }
 
+.inputs-container{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#server-select {
+  max-width: 200px;
+  padding: 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: small;
+  background-color: #0e0e0e;
+  color: white;
+}
+
 @media (max-width: 768px) {
   #results-list {
     grid-template-columns: 1fr;
   }
 
-  #scrape-form{
+  #scrape-form {
     flex-direction: column;
   }
   #button-section {
+    flex-direction: row;
+  }
+
+  .inputs-container {
     flex-direction: row;
   }
 
@@ -445,7 +465,8 @@ a {
     --padding: 20px;
   }
 
-  #logs span, #logs {
+  #logs span,
+  #logs {
     font-size: 0.6rem;
   }
 
@@ -458,7 +479,7 @@ a {
       'buttons';
   }
 
-  body{
+  body {
     grid-template-rows: 1fr 10svh;
   }
 

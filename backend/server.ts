@@ -671,6 +671,11 @@ app.get('/logs', (req: Request, res: Response) => {
   });
 });
 
+app.get('/ping', (_req: Request, res: Response) => {
+  log(chalk.green('Ping received at:', new Date().toISOString()));
+  res.json({ success: true });
+});
+
 app.listen(PORT, () => {
   log(chalk.green(`Server listening at port ${PORT}`));
 });

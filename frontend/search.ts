@@ -1,7 +1,7 @@
 import './style.css';
 import { Result, ScrapedData, Category } from '../shared-types';
 
-let searchButton = document.querySelector('#skrape') as HTMLButtonElement;
+let skrapeButton = document.querySelector('#skrape') as HTMLButtonElement;
 let categoryButton = document.querySelector('#category-button') as HTMLButtonElement;
 let logsContainer = document.querySelector('#logs') as HTMLElement;
 let hideLogsButton = document.querySelector('#hide-logs') as HTMLButtonElement;
@@ -9,15 +9,101 @@ let clearLogsButton = document.querySelector('#clear-logs') as HTMLButtonElement
 let zipCodeInput = document.querySelector('#zipcode-input') as HTMLInputElement;
 let categoriesContainer = document.querySelector('#categories') as HTMLDivElement;
 let resultsList = document.getElementById('results-list') as HTMLUListElement;
+let serverSelect = document.querySelector('#server-select') as HTMLSelectElement;
 
-let app = document.querySelector('#app') as HTMLElement;
+skrapeButton.disabled = true;
+categoryButton.disabled = true;
+let canFetchCategories = false;
+let canFetchData = false;
 
-const SERVER_URLS = [
-  'https://skrapper.onrender.com',
-  'http://localhost:4000',
-];
+let eventSource: EventSource | null = null;
+let clientRequestId: string | null = null;
+let availableServers = [];
+let selectedServer: string | null = null;
 
-const SERVER_URL = SERVER_URLS[0];
+const SERVER_CONFIG: {
+  [key: string]: {
+    url: string;
+    name: string;
+    description: string;
+  };
+} = {
+  cloud: {
+    url: 'https://skrapper.onrender.com',
+    name: 'Cloud',
+    description: 'Cloud (slow, but mostly active)',
+  },
+  dedicated: {
+    url: 'http://example.com',
+    name: 'Dedicated',
+    description: 'Dedicated (fast, but not always active)',
+  },
+  local: {
+    url: 'http://localhost:4000',
+    name: 'Local',
+    description: 'Local (fastest, but requires you to run a server locally on port 4000)',
+  },
+};
+
+for (const i in SERVER_CONFIG) {
+  try {
+    const response = await fetch(`${SERVER_CONFIG[i].url}/ping`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (response.ok) {
+      log(`${SERVER_CONFIG[i].name} server is active`, 'green');
+      availableServers.push(SERVER_CONFIG[i]);
+    } else {
+      log(`${SERVER_CONFIG[i].name} server is inactive`, 'red');
+    }
+  } catch (error) {
+    if (error instanceof Error)
+      log(`${SERVER_CONFIG[i].name} server is inactive: ${error.message}`, 'red');
+    else log(`${SERVER_CONFIG[i].name} server is inactive`, 'red');
+  }
+}
+
+if (availableServers.length === 0) {
+  log('No servers available. Please reload or try again later', 'red');
+  skrapeButton.disabled = true;
+  categoryButton.disabled = true;
+  serverSelect.disabled = true;
+  serverSelect.style.color = 'red';
+  canFetchCategories = false;
+  canFetchData = false;
+  const noServerOption = document.getElementById('no-server-option') as HTMLOptionElement;
+  noServerOption.textContent = 'No servers available';
+} else {
+  for (const server of availableServers) {
+    const option = document.createElement('option');
+    option.value = server.url;
+    option.textContent = server.description;
+    serverSelect.appendChild(option);
+  }
+  canFetchCategories = true;
+  canFetchData = true;
+  skrapeButton.disabled = false;
+  categoryButton.disabled = false;
+}
+
+serverSelect.addEventListener('change', () => {
+  selectedServer = serverSelect.value;
+  if (eventSource) {
+    eventSource.close();
+  }
+  eventSource = new EventSource(`${selectedServer}/logs`);
+  eventSource.onmessage = (event) => {
+    const { message, requestId } = JSON.parse(event.data);
+    if (requestId) clientRequestId = requestId;
+    const coloredHtml = ansiToHtml(message);
+    logsContainer.innerHTML += coloredHtml + '<br>';
+    console.log(message);
+    scrollLogsToBottom();
+  };
+});
+
 const loadingSpinner = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="24" height="24">
   <g>
@@ -33,12 +119,6 @@ const loadingSpinner = `
   </g>
 </svg>
 `;
-
-let canFetchCategories = true;
-let canFetchData = true;
-let eventSource: EventSource | null = null;
-
-let clientRequestId: string | null = null;
 
 interface AnsiColorCodes {
   [key: number]: string;
@@ -117,16 +197,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (localStorage.getItem('categories')) {
     displayCategories(JSON.parse(localStorage.getItem('categories') as string));
   }
-
-  eventSource = new EventSource(`${SERVER_URL}/logs`);
-  eventSource.onmessage = (event) => {
-    const { message, requestId } = JSON.parse(event.data);
-    if (requestId) clientRequestId = requestId;
-    const coloredHtml = ansiToHtml(message);
-    logsContainer.innerHTML += coloredHtml + '<br>';
-    console.log(message);
-    scrollLogsToBottom();
-  };
 });
 
 window.addEventListener('beforeunload', () => {
@@ -140,7 +210,7 @@ function log(message: string, color: string = 'white') {
   scrollLogsToBottom();
 }
 
-searchButton.addEventListener('click', (event) => {
+skrapeButton.addEventListener('click', (event) => {
   event.preventDefault();
   startScraping();
 });
@@ -156,7 +226,7 @@ function startTimer() {
   let time = 0;
   loadingTimer = setInterval(() => {
     time++;
-    searchButton.textContent = formatTime(time);
+    skrapeButton.textContent = formatTime(time);
   }, 1000);
 }
 
@@ -173,6 +243,10 @@ function formatTime(time: number) {
 let selectedCategoryURLs: string[] = [];
 
 function getCategories(): void {
+  if (!selectedServer) {
+    log('Please select a server!', 'red');
+    return;
+  }
   if (!canFetchCategories) {
     return;
   }
@@ -181,7 +255,7 @@ function getCategories(): void {
   categoryButton.disabled = true;
   canFetchCategories = false;
 
-  fetch(`${SERVER_URL}/get-categories/${clientRequestId}`)
+  fetch(`${selectedServer}/get-categories/${clientRequestId}`)
     .then((response) => response.json())
     .then((data: Category[]) => {
       localStorage.setItem('categories', JSON.stringify(data));
@@ -286,6 +360,11 @@ function displayCategories(categories: Category[]): void {
 }
 
 async function startScraping(): Promise<void> {
+  if (!selectedServer) {
+    log('Please select a server!', 'red');
+    return;
+  }
+
   if (selectedCategoryURLs.length === 0) {
     log('Please select at least one category', 'red');
     return;
@@ -304,13 +383,13 @@ async function startScraping(): Promise<void> {
   }
 
   startTimer();
-  searchButton.disabled = true;
+  skrapeButton.disabled = true;
   canFetchData = false;
   const zipCode = parseInt(zipCodeInput.value);
 
   try {
     resultsList.innerHTML = loadingSpinner;
-    const response = await fetch(`${SERVER_URL}/scrape`, {
+    const response = await fetch(`${selectedServer}/scrape`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -339,15 +418,15 @@ async function startScraping(): Promise<void> {
     resultsList.innerHTML = '';
   } finally {
     stopTimer();
-    searchButton.innerHTML = 'SKRAPE';
-    searchButton.disabled = false;
+    skrapeButton.innerHTML = 'SKRAPE';
+    skrapeButton.disabled = false;
     canFetchData = true;
   }
 }
 
 async function getScrapedData(): Promise<void> {
   try {
-    const response = await fetch(`${SERVER_URL}/get-data`);
+    const response = await fetch(`${selectedServer}/get-data`);
     const data: ScrapedData = await response.json();
 
     if (data.json) {

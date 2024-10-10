@@ -5,11 +5,19 @@
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SKRAPPER v1</title>
+    <script type="module" src="search.ts"></script>
   </head>
   <body>
     <main>
       <form id="scrape-form">
-        <input type="text" id="zipcode-input" placeholder="Enter zipcode" />
+        <div class="inputs-container">
+
+          <input type="text" id="zipcode-input" placeholder="Enter zipcode" />
+          <select id="server-select">
+            <option disabled selected id="no-server-option" value="">Select a server</option>
+  
+          </select>
+        </div>
         <button type="button" id="category-button">Fetch categories</button>
         <button type="button" id="skrape">SKRAPE</button>
       </form>
@@ -23,6 +31,5 @@
       </section>
     </main>
     <code id="logs"></code>
-    <script type="module" src="search.ts"></script>
   </body>
 </html>
