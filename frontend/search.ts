@@ -8,7 +8,7 @@ let hideLogsButton = document.querySelector('#hide-logs') as HTMLButtonElement;
 let clearLogsButton = document.querySelector('#clear-logs') as HTMLButtonElement;
 let zipCodeInput = document.querySelector('#zipcode-input') as HTMLInputElement;
 let categoriesContainer = document.querySelector('#categories') as HTMLDivElement;
-  let resultsList = document.getElementById('results-list') as HTMLUListElement;
+let resultsList = document.getElementById('results-list') as HTMLUListElement;
 
 let app = document.querySelector('#app') as HTMLElement;
 
@@ -306,6 +306,7 @@ async function startScraping(): Promise<void> {
   const zipCode = parseInt(zipCodeInput.value);
 
   try {
+    resultsList.innerHTML = loadingSpinner;
     const response = await fetch(`${SERVER_URL}/scrape`, {
       method: 'POST',
       headers: {
@@ -323,6 +324,7 @@ async function startScraping(): Promise<void> {
         'Error during scraping. Please try again. If the issue persists, try with another zipcode',
         'red',
       );
+      resultsList.innerHTML = '';
       return;
     }
   } catch (error) {
@@ -331,6 +333,7 @@ async function startScraping(): Promise<void> {
       'Error during scraping. Please try again. If the issue persists, try with another zipcode',
       'red',
     );
+    resultsList.innerHTML = '';
   } finally {
     stopTimer();
     searchButton.innerHTML = 'SKRAPE';
@@ -352,6 +355,7 @@ async function getScrapedData(): Promise<void> {
     }
   } catch (error) {
     console.error('Error fetching scraped data:', error);
+    resultsList.innerHTML = '';
     log('No scraped data available. Please run the scraper first', 'red');
   }
 }
@@ -362,6 +366,7 @@ function displayResults(results: Result[]): void {
       'No relevant results or sales for the selected categories... But you can download the full CSV',
       'cyan',
     );
+    resultsList.innerHTML = '';
     return;
   }
 
@@ -416,10 +421,12 @@ function displayResults(results: Result[]): void {
 function addDownloadButtons(data: ScrapedData): void {
   const buttonSection = document.querySelector('#button-section') as HTMLElement;
 
-  const downloadButtonExists = document.getElementById('download-csv');
-  if (downloadButtonExists) {
-    downloadButtonExists.remove();
-  }
+  const downloadCsvButtonExists = document.getElementById('download-csv');
+  if (downloadCsvButtonExists) downloadCsvButtonExists.remove();
+
+  const downloadJsonButtonExists = document.getElementById('download-json');
+  if (downloadJsonButtonExists) downloadJsonButtonExists.remove();
+
   const downloadCsvButton = document.createElement('button');
   downloadCsvButton.id = 'download-csv';
   downloadCsvButton.className = 'download-button';
@@ -427,10 +434,6 @@ function addDownloadButtons(data: ScrapedData): void {
   buttonSection.appendChild(downloadCsvButton);
 
   if (data.json.length !== 0) {
-    const downloadButtonExists = document.getElementById('download-json');
-    if (downloadButtonExists) {
-      downloadButtonExists.remove();
-    }
     const downloadJsonButton = document.createElement('button');
     downloadJsonButton.id = 'download-json';
     downloadJsonButton.className = 'download-button';
