@@ -33,7 +33,7 @@ if (localStorage.getItem('categories')) {
   log('Categories loaded from local storage', 'yellow');
   displayCategories(JSON.parse(localStorage.getItem('categories') as string));
 } else {
-  log('No categories loaded from local storage, run fetch categories', 'yellow');
+  log('No categories loaded from local storage, click on Fetch categories!', 'yellow');
 }
 
 const SERVER_CONFIG: {
