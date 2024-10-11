@@ -453,6 +453,12 @@ transform: translateY(-3px);
   font-size: small;
   background-color: #0e0e0e;
   color: white;
+
+
+  &:disabled {
+    color: grey;
+    cursor: not-allowed;
+  }
 }
 
 @media (max-width: 768px) {

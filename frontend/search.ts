@@ -1,5 +1,5 @@
 import './style.css';
-import { Result, ScrapedData, Category } from '../shared-types';
+import { Result, ScrapedData, Category, APIScrapeResponse } from '../shared-types';
 
 let skrapeButton = document.querySelector('#skrape') as HTMLButtonElement;
 let categoryButton = document.querySelector('#category-button') as HTMLButtonElement;
@@ -20,7 +20,7 @@ let canFetchData = false;
 let eventSource: EventSource | null = null;
 let clientRequestId: string | null = null;
 let availableServers = [];
-let selectedServer: string | null = null;
+let selectedServerURL: string | null = null;
 let selectedCategoryURLs: string[] = [];
 
 console.log(
@@ -63,6 +63,8 @@ const SERVER_CONFIG: {
 
 for (const i in SERVER_CONFIG) {
   try {
+    log(`Checking ${SERVER_CONFIG[i].name} server status...`, 'gray');
+
     const response = await fetch(`${SERVER_CONFIG[i].url}/ping`, {
       method: 'GET',
       signal: AbortSignal.timeout(20000),
@@ -106,11 +108,11 @@ if (availableServers.length === 0) {
 }
 
 serverSelect.addEventListener('change', () => {
-  selectedServer = serverSelect.value;
+  selectedServerURL = serverSelect.value;
   if (eventSource) {
     eventSource.close();
   }
-  eventSource = new EventSource(`${selectedServer}/logs`);
+  eventSource = new EventSource(`${selectedServerURL}/logs`);
   eventSource.onmessage = (event) => {
     const { message, requestId } = JSON.parse(event.data);
     if (requestId) clientRequestId = requestId;
@@ -253,11 +255,18 @@ function formatTime(time: number) {
 }
 
 function getCategories(): void {
-  if (!selectedServer) {
+  if (!selectedServerURL) {
     log('Please select a server!', 'red');
     return;
   }
   if (!canFetchCategories) {
+    return;
+  }
+  if (
+    zipCodeInput.value.length !== 0 &&
+    (zipCodeInput.value.match(/\D/) || zipCodeInput.value.length !== 5)
+  ) {
+    log('Please enter a valid 5-digit zip code', 'red');
     return;
   }
 
@@ -265,7 +274,7 @@ function getCategories(): void {
   categoryButton.disabled = true;
   canFetchCategories = false;
 
-  fetch(`${selectedServer}/get-categories/${clientRequestId}`)
+  fetch(`${selectedServerURL}/get-categories/${clientRequestId}?z=${zipCodeInput.value}`)
     .then((response) => response.json())
     .then((data: Category[]) => {
       if (data.length === 0) {
@@ -374,7 +383,7 @@ function displayCategories(categories: Category[]): void {
 }
 
 async function startScraping(): Promise<void> {
-  if (!selectedServer) {
+  if (!selectedServerURL) {
     log('Please select a server!', 'red');
     return;
   }
@@ -403,7 +412,7 @@ async function startScraping(): Promise<void> {
 
   try {
     resultsList.innerHTML = loadingSpinner;
-    const response = await fetch(`${selectedServer}/scrape`, {
+    const response = await fetch(`${selectedServerURL}/scrape`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -411,10 +420,16 @@ async function startScraping(): Promise<void> {
       body: JSON.stringify({ urls: selectedCategoryURLs, requestId: clientRequestId, zipCode }),
     });
 
-    const data = await response.json();
+    const responseJson: APIScrapeResponse = await response.json();
 
-    if (data.success) {
-      getScrapedData();
+    if (responseJson.success) {
+      if (responseJson.scrapedData) {
+        displayResults(responseJson.scrapedData.json);
+        addDownloadButtons(responseJson.scrapedData);
+      } else {
+        log('No scraped data available', 'red');
+        resultsList.innerHTML = '';
+      }
     } else {
       log(
         'Error during scraping. Please try again. If the issue persists, try with another zipcode',
@@ -435,24 +450,6 @@ async function startScraping(): Promise<void> {
     skrapeButton.innerHTML = 'SKRAPE';
     skrapeButton.disabled = false;
     canFetchData = true;
-  }
-}
-
-async function getScrapedData(): Promise<void> {
-  try {
-    const response = await fetch(`${selectedServer}/get-data`);
-    const data: ScrapedData = await response.json();
-
-    if (data.json) {
-      displayResults(data.json);
-      addDownloadButtons(data);
-    } else {
-      log('No scraped data available. Please run the scraper first', 'red');
-    }
-  } catch (error) {
-    console.error('Error fetching scraped data:', error);
-    resultsList.innerHTML = '';
-    log('No scraped data available. Please run the scraper first', 'red');
   }
 }
 

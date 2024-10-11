@@ -21,3 +21,8 @@ export interface Category{
   name: string;
   url: string;
 }
+
+export interface APIScrapeResponse {
+  success: boolean;
+  scrapedData?: ScrapedData;
+}
