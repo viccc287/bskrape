@@ -145,12 +145,12 @@ const scrapeAllUrls = async (
   totalBytesTransferred: number;
 }> => {
   if (signal.aborted) {
-    throw new Error('Aborted before opening browser');
+    throw new Error('Aborted before starting browser');
   }
 
   blockResourcesPlugin().blockedTypes.add('stylesheet');
 
-  logBoth(chalk.gray('Opening browser...'), requestId);
+  logBoth(chalk.gray('Starting browser...'), requestId);
   const browser = await puppeteer.launch({
     headless: true,
     args: [`--proxy-server=${PROXY_URL}`],
