@@ -269,7 +269,7 @@ function getCategories(): void {
     .then((response) => response.json())
     .then((data: Category[]) => {
       if (data.length === 0) {
-        log('No categories found', 'red');
+        log('No categories found, or an error ocurred', 'red');
         return;
       }
       localStorage.setItem('categories', JSON.stringify(data));
