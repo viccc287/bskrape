@@ -229,7 +229,17 @@ const getCategories = async (signal, requestId, zipCode) => {
         await browser.close();
         logBoth(chalk.gray('Browser closed'), requestId);
     }
-    return categories.filter((category) => !category.url.includes('content'));
+    const filteredCategories = categories.filter((category) => !category.url.includes('content'));
+    const uniqueCategories = filteredCategories.reduce((acc, current) => {
+        const x = acc.find((item) => item.url === current.url);
+        if (!x) {
+            return acc.concat([current]);
+        }
+        else {
+            return acc;
+        }
+    }, []);
+    return uniqueCategories;
 };
 const scrapeItems = async (browser, url, signal, requestId) => {
     if (signal.aborted) {

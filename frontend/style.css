@@ -40,7 +40,6 @@
   transition-duration: 0.5s;
   grid-area: logs;
   font-size: 0.8rem;
-
 }
 
 #logs > span {
@@ -314,7 +313,27 @@ a {
   color: #e0e0e0;
 }
 
-#toggle-all-btn {
+#categories-info {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  flex-wrap: wrap;
+
+  #selected-badge {
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 5px 10px;
+    border-radius: 5px;
+  }
+  #selected-count {
+    font-size: small;
+    color: gray;
+  }
+}
+
+#toggle-all-btn,
+#clear-selection-btn {
   max-width: fit-content;
   display: inline-block;
   padding: 10px 20px;
@@ -326,6 +345,10 @@ a {
   font-size: smaller;
   transition: background-color 0.2s;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+#clear-selection-btn {
+  background-color: crimson;
 }
 
 #search-input,
@@ -360,7 +383,7 @@ a {
 }
 
 .result-item:hover {
-transform: translateY(-3px);
+  transform: translateY(-3px);
 }
 
 .product-image-container {
@@ -375,7 +398,7 @@ transform: translateY(-3px);
 }
 
 .product-info {
-  padding: calc(var(--padding)/2);
+  padding: calc(var(--padding) / 2);
   text-align: left;
 }
 
@@ -439,7 +462,7 @@ transform: translateY(-3px);
   color: white;
 }
 
-.inputs-container{
+.inputs-container {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -454,7 +477,6 @@ transform: translateY(-3px);
   background-color: #0e0e0e;
   color: white;
 
-
   &:disabled {
     color: grey;
     cursor: not-allowed;
@@ -463,7 +485,7 @@ transform: translateY(-3px);
 
 @media (max-width: 768px) {
   #results-list {
-    grid-template-columns: repeat(auto-fit, minmax(125px,1fr));
+    grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
   }
 
   .product-image-container {
@@ -477,7 +499,9 @@ transform: translateY(-3px);
     font-size: 1rem;
   }
 
-  .product-info p, .product-info p.store-name, .product-info p.id {
+  .product-info p,
+  .product-info p.store-name,
+  .product-info p.id {
     font-size: 0.8rem;
   }
 
@@ -529,5 +553,4 @@ transform: translateY(-3px);
   body {
     grid-template-rows: 1fr 10svh;
   }
-
 }

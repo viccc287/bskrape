@@ -17,6 +17,7 @@ serverSelect.disabled = true;
 let canFetchCategories = false;
 let canFetchData = false;
 
+
 let eventSource: EventSource | null = null;
 let clientRequestId: string | null = null;
 let availableServers = [];
@@ -299,13 +300,26 @@ function displayCategories(categories: Category[]): void {
   categoriesContainer.innerHTML = `
     <div id="categories-form">
       <input type="text" id="search-input" placeholder="Search categories to skrape" />
-      <button type="button" id="toggle-all-btn">Select all ${categories.length}</button>
+      <div id='categories-info'>
+        <button type="button" id="toggle-all-btn">Select all</button>
+        <button type="button" id="clear-selection-btn">Clear selection</button>
+        <span id='selected-badge'>
+        <p id="selected-count">0 selected</p>
+        </span>
+        
+      </div>
       <ul id="categories-list"></ul>
     </div>
   `;
   const toggleAllButton = document.getElementById('toggle-all-btn') as HTMLButtonElement;
+  const clearSelectionButton = document.getElementById('clear-selection-btn') as HTMLButtonElement;
   const categoriesList = document.getElementById('categories-list') as HTMLUListElement;
   const searchInput = document.getElementById('search-input') as HTMLInputElement;
+  const selectedCountElement = document.getElementById('selected-count') as HTMLParagraphElement;
+
+  function updateSelectedCount() {
+    selectedCountElement.textContent = `${selectedCategoryURLs.length} selected`;
+  }
 
   function renderCategories(filteredCategories: Category[]) {
     categoriesList.innerHTML = '';
@@ -335,10 +349,12 @@ function displayCategories(categories: Category[]): void {
           selectedCategoryURLs = selectedCategoryURLs.filter((url) => url !== target.value);
         }
         updateToggleAllButton();
+        updateSelectedCount();
       });
     });
 
     updateToggleAllButton();
+    updateSelectedCount();
   }
 
   function updateToggleAllButton() {
@@ -346,7 +362,19 @@ function displayCategories(categories: Category[]): void {
       '.category-checkbox',
     ) as NodeListOf<HTMLInputElement>;
     const allChecked = Array.from(checkboxes).every((checkbox) => checkbox.checked);
-    toggleAllButton.innerHTML = allChecked ? 'Clear selection' : `Select all ${checkboxes.length}`;
+    toggleAllButton.innerHTML = allChecked ? 'Unselect all' : `Select all ${checkboxes.length}`;
+  }
+
+  function clearSelection() {
+    selectedCategoryURLs = [];
+    const checkboxes = document.querySelectorAll(
+      '.category-checkbox',
+    ) as NodeListOf<HTMLInputElement>;
+    checkboxes.forEach((checkbox) => {
+      checkbox.checked = false;
+    });
+    updateToggleAllButton();
+    updateSelectedCount();
   }
 
   renderCategories(categories);
@@ -379,7 +407,10 @@ function displayCategories(categories: Category[]): void {
     });
 
     updateToggleAllButton();
+    updateSelectedCount();
   });
+
+  clearSelectionButton.addEventListener('click', clearSelection);
 }
 
 async function startScraping(): Promise<void> {

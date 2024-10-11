@@ -296,7 +296,16 @@ const getCategories = async (
     logBoth(chalk.gray('Browser closed'), requestId);
   }
 
-  return categories.filter((category) => !category.url.includes('content'));
+  const filteredCategories = categories.filter((category) => !category.url.includes('content'));
+ const uniqueCategories = filteredCategories.reduce((acc: Category[], current) => {
+   const x = acc.find((item) => item.url === current.url);
+   if (!x) {
+     return acc.concat([current]);
+   } else {
+     return acc;
+   }
+ }, []);
+  return uniqueCategories;
 };
 
 const scrapeItems = async (
