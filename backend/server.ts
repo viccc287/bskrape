@@ -646,7 +646,7 @@ app.get('/get-categories/:requestId', async (req: Request, res: Response) => {
 
   logBoth(chalk.yellow('Fetching categories...'), requestId);
 
-  const categories = await getCategories(abortController.signal, requestId, zipCode);
+  const categories = await getCategories(abortController.signal, requestId, Number(zipCode));
   res.json(categories);
 });
 

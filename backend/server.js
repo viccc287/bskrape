@@ -18,13 +18,13 @@ const PORT = Number(process.env.PORT) || 4000;
 app.use(cors());
 app.use(express.json());
 const BASE_URL = 'https://despensa.bodegaaurrera.com.mx';
-const LOAD_URL = 'https://despensa.bodegaaurrera.com.mx/ip/refresco-coca-cola-sabor-original-2-5-l/00750105530524';
+const LOAD_URL = 'https://despensa.bodegaaurrera.com.mx';
 const MAX_CONCURRENT_PAGES = 5;
-const ZIP_CODE = '97138';
+const ZIP_CODE = '01000';
 const USE_ZIP_CODE = true;
 const abortControllers = new Map();
+const abortHandlers = new WeakMap();
 const sseClients = new Map();
-let globalScrapedData = null;
 const PROXY_URL = process.env.PROXY_URL;
 const PROXY_USERNAME = process.env.PROXY_USERNAME;
 const PROXY_PASSWORD = process.env.PROXY_PASSWORD;
@@ -37,7 +37,26 @@ if (!PROXY_URL || !PROXY_USERNAME || !PROXY_PASSWORD) {
     log(chalk.red('Proxy credentials not provided. Exiting...'));
     process.exit(1);
 }
-let totalBytesTransferred = 0;
+puppeteer
+    .use(blockResourcesPlugin({
+    blockedTypes: new Set([
+        'image',
+        'font',
+        'media',
+        'texttrack',
+        'eventsource',
+        'websocket',
+        'manifest',
+        'xhr',
+        'other',
+    ]),
+    interceptResolutionPriority: DEFAULT_INTERCEPT_RESOLUTION_PRIORITY,
+}))
+    .use(StealthPlugin())
+    .use(AdblockerPlugin({
+    blockTrackers: true,
+    interceptResolutionPriority: DEFAULT_INTERCEPT_RESOLUTION_PRIORITY,
+}));
 const logBoth = (message, requestId) => {
     console.log(message);
     const sseRes = sseClients.get(requestId);
@@ -66,7 +85,6 @@ const generateCsvString = (items) => {
     });
     return csvRows.join('\n');
 };
-const abortHandlers = new WeakMap();
 const gotoWithTimeout = async (page, url, signal, timeout = 300000) => {
     const abortPromise = new Promise((_, reject) => {
         let abortHandler = abortHandlers.get(signal);
@@ -92,32 +110,12 @@ const gotoWithTimeout = async (page, url, signal, timeout = 300000) => {
         throw error;
     }
 };
-puppeteer
-    .use(blockResourcesPlugin({
-    blockedTypes: new Set([
-        'image',
-        'font',
-        'media',
-        'texttrack',
-        'eventsource',
-        'websocket',
-        'manifest',
-        'xhr',
-        'other',
-    ]),
-    interceptResolutionPriority: DEFAULT_INTERCEPT_RESOLUTION_PRIORITY,
-}))
-    .use(StealthPlugin())
-    .use(AdblockerPlugin({
-    blockTrackers: true,
-    interceptResolutionPriority: DEFAULT_INTERCEPT_RESOLUTION_PRIORITY,
-}));
 const scrapeAllUrls = async (urls, signal, requestId, zipCode) => {
     if (signal.aborted) {
         throw new Error('Aborted before opening browser');
     }
     blockResourcesPlugin().blockedTypes.add('stylesheet');
-    logBoth(chalk.blue('Opening browser...'), requestId);
+    logBoth(chalk.gray('Opening browser...'), requestId);
     const browser = await puppeteer.launch({
         headless: true,
         args: [`--proxy-server=${PROXY_URL}`],
@@ -127,9 +125,10 @@ const scrapeAllUrls = async (urls, signal, requestId, zipCode) => {
     });
     let resultsToReturn = [];
     let resultsToStore = [];
+    let totalBytesTransferred = 0;
     const startTime = nodePerformance.now();
     try {
-        await setZipCode(zipCode, browser, signal, requestId);
+        totalBytesTransferred += await setZipCode(zipCode, browser, signal, requestId);
         const queue = [...urls];
         const activePromises = new Set();
         const processNext = async () => {
@@ -142,6 +141,7 @@ const scrapeAllUrls = async (urls, signal, requestId, zipCode) => {
                     .then((resultObject) => {
                     resultsToReturn = [...resultsToReturn, ...resultObject.relevantResults];
                     resultsToStore = [...resultsToStore, ...resultObject.allResults];
+                    totalBytesTransferred += resultObject.bytesTransferred;
                 })
                     .catch((error) => {
                     logBoth(chalk.red(`Error scraping ${targetUrl}: `, error), requestId);
@@ -160,20 +160,20 @@ const scrapeAllUrls = async (urls, signal, requestId, zipCode) => {
         logBoth(chalk.green('Scraping finished for all URLs'), requestId);
     }
     finally {
-        logBoth(chalk.blue('Closing browser...'), requestId);
+        logBoth(chalk.gray('Closing browser...'), requestId);
         await browser.close();
-        logBoth(chalk.blue('Browser closed'), requestId);
+        logBoth(chalk.gray('Browser closed'), requestId);
     }
     const endTime = nodePerformance.now();
     const executionTime = (endTime - startTime) / 1000;
     logBoth(chalk.yellow(`Total execution time: ${executionTime.toFixed(2)} seconds`), requestId);
-    return { resultsToReturn, resultsToStore };
+    return { resultsToReturn, resultsToStore, totalBytesTransferred };
 };
-const getCategories = async (signal, requestId) => {
+const getCategories = async (signal, requestId, zipCode) => {
     if (signal.aborted) {
         throw new Error('Aborted');
     }
-    logBoth(chalk.blue('Starting browser...'), requestId);
+    logBoth(chalk.gray('Starting browser...'), requestId);
     let categories = [];
     const browser = await puppeteer.launch({
         headless: true,
@@ -183,34 +183,25 @@ const getCategories = async (signal, requestId) => {
             : puppeteer.executablePath(),
     });
     try {
+        await setZipCode(zipCode, browser, signal, requestId);
         const page = await browser.newPage();
         await page.authenticate({
             username: PROXY_USERNAME,
             password: PROXY_PASSWORD,
         });
-        logBoth(chalk.blue('Going to LOAD_URL:', LOAD_URL), requestId);
+        logBoth(chalk.gray(`Getting categories using ZIP code ${zipCode} from ${LOAD_URL}`), requestId);
         await gotoWithTimeout(page, LOAD_URL, signal);
         const pageUrl = page.url();
         if (!pageUrl.includes(BASE_URL)) {
             throw new Error('Redirected to external page');
         }
-        logBoth(chalk.blue('Arrived at page:', pageUrl), requestId);
-        if (pageUrl.includes('selectPickupStore')) {
-            await page.waitForSelector('button.white.pa0.mv2.bg-transparent.bn.dib.mh0.pointer > i');
-            await page.click('button.white.pa0.mv2.bg-transparent.bn.dib.mh0.pointer > i');
-            logBoth(chalk.magenta('Closing store selection sidebar'), requestId);
-        }
-        else {
-            await page.waitForSelector('.ld.ld-ChevronUp.ml2.dn.db-m');
-            await page.click('.ld.ld-ChevronUp.ml2.dn.db-m', { delay: 200 });
-            logBoth(chalk.magenta('Closing store selection dropdown'), requestId);
-        }
+        logBoth(chalk.gray('Arrived at page:', pageUrl), requestId);
         await page.waitForSelector("[link-identifier='Departments'] > i"), { visible: false };
         await page.click("[link-identifier='Departments'] > i", { delay: 1000 });
         logBoth(chalk.magenta('Opening departments dropdown'), requestId);
         await page.waitForSelector("[link-identifier='viewAllDepartment']");
         const buttons = await page.$$('[link-identifier="viewAllDepartment"] + ul > li > button');
-        logBoth(chalk.blue('Found potential categories:', buttons.length), requestId);
+        logBoth(chalk.gray('Found potential categories:', buttons.length), requestId);
         for (let i = 1; i < buttons.length; i++) {
             const button = buttons[i];
             await button.click();
@@ -234,9 +225,9 @@ const getCategories = async (signal, requestId) => {
         return [];
     }
     finally {
-        logBoth(chalk.blue('Closing browser...'), requestId);
+        logBoth(chalk.gray('Closing browser...'), requestId);
         await browser.close();
-        logBoth(chalk.blue('Browser closed'), requestId);
+        logBoth(chalk.gray('Browser closed'), requestId);
     }
     return categories.filter((category) => !category.url.includes('content'));
 };
@@ -248,13 +239,14 @@ const scrapeItems = async (browser, url, signal, requestId) => {
     let relevantResults = [];
     let currentPage = 1;
     let hasMorePages = true;
+    let bytesTransferred = 0;
     try {
         while (hasMorePages) {
             if (signal.aborted) {
                 throw new Error('Aborted');
             }
             const pageUrl = `${url}${currentPage > 1 ? `?page=${currentPage}` : ''}`;
-            const { allItems, relevantItems, pageNotFound } = await scrapePage(browser, pageUrl, signal, requestId);
+            const { allItems, relevantItems, pageNotFound, bytesTransferred: pageBytes, } = await scrapePage(browser, pageUrl, signal, requestId);
             if (pageNotFound) {
                 hasMorePages = false;
                 logBoth(chalk.magenta(`Stopping scraping for: ${url}`), requestId);
@@ -262,10 +254,11 @@ const scrapeItems = async (browser, url, signal, requestId) => {
             else {
                 allResults = [...allResults, ...allItems];
                 relevantResults = [...relevantResults, ...relevantItems];
+                bytesTransferred += pageBytes;
                 currentPage++;
             }
         }
-        return { allResults, relevantResults };
+        return { allResults, relevantResults, bytesTransferred };
     }
     catch (error) {
         logBoth(`${chalk.red('Error during scraping in scrapeItems:')} ${error}`, requestId);
@@ -276,19 +269,20 @@ const setZipCode = async (zipCode, browser, signal, requestId) => {
     if (signal.aborted) {
         throw new Error('Aborted before setting ZIP code');
     }
+    let bytesTransferred = 0;
     const page = await browser.newPage();
     await page.authenticate({
         username: PROXY_USERNAME,
         password: PROXY_PASSWORD,
     });
-    logBoth(chalk.blue('Going to base URL:', BASE_URL), requestId);
-    await gotoWithTimeout(page, BASE_URL, signal);
+    logBoth(chalk.gray(`Going to set ZIP code ${zipCode} in ${LOAD_URL}`), requestId);
+    await gotoWithTimeout(page, LOAD_URL, signal);
     const url = page.url();
     if (!url.includes(BASE_URL)) {
         throw new Error('Redirected to external page');
     }
-    logBoth(chalk.blue('Arrived at page:', url), requestId);
-    logBoth(chalk.blue('Setting ZIP code...'), requestId);
+    logBoth(chalk.gray('Arrived at page:', url), requestId);
+    logBoth(chalk.gray('Setting ZIP code...'), requestId);
     if (USE_ZIP_CODE && !url.includes('page')) {
         if (!url.includes('selectPickupStore')) {
             await page.waitForSelector("[data-automation-id='fulfillment-address'] > button");
@@ -310,8 +304,8 @@ const setZipCode = async (zipCode, browser, signal, requestId) => {
         const waitDuration = 12000;
         logBoth(chalk.magenta(`Waiting for store selection to finish... (${waitDuration / 1000} seconds)`), requestId);
         await new Promise((resolve) => setTimeout(resolve, waitDuration));
-        logBoth(chalk.blue('Store selection finished'), requestId);
-        const localBytesTransferred = await page.evaluate(() => {
+        logBoth(chalk.gray('Store selection finished'), requestId);
+        bytesTransferred = await page.evaluate(() => {
             const entries = window.performance.getEntriesByType('resource');
             return entries.reduce((total, entry) => {
                 if (entry.transferSize) {
@@ -320,10 +314,10 @@ const setZipCode = async (zipCode, browser, signal, requestId) => {
                 return total;
             }, 0);
         });
-        logBoth(chalk.yellow(`${(localBytesTransferred / 1024 / 1024).toFixed(2)} MB`), requestId);
-        totalBytesTransferred += localBytesTransferred;
+        logBoth(chalk.yellow(`${(bytesTransferred / 1024).toFixed(2)} KB transferred`), requestId);
         await page.close();
     }
+    return bytesTransferred;
 };
 const scrapePage = async (browser, scrapeUrl, signal, requestId) => {
     if (signal.aborted) {
@@ -334,14 +328,15 @@ const scrapePage = async (browser, scrapeUrl, signal, requestId) => {
         username: PROXY_USERNAME,
         password: PROXY_PASSWORD,
     });
-    logBoth(chalk.cyan(`Going to page: ${scrapeUrl}`), requestId);
+    let bytesTransferred = 0;
     try {
+        logBoth(chalk.gray(`Going to scrape page: ${scrapeUrl}`), requestId);
         await gotoWithTimeout(page, scrapeUrl, signal);
         const url = page.url();
         if (!url.includes(BASE_URL)) {
             throw new Error('Redirected to external page');
         }
-        const pageResult = await page.evaluate(() => {
+        const { relevantItems, allItems, pageNotFound } = await page.evaluate(() => {
             let relevantItems = [];
             let allItems = [];
             const BYPASS_FILTERS = false;
@@ -411,7 +406,7 @@ const scrapePage = async (browser, scrapeUrl, signal, requestId) => {
             return { allItems, relevantItems, pageNotFound };
         });
         logBoth(chalk.green('Scraping finished for page ' + scrapeUrl), requestId);
-        const localBytesTransferred = await page.evaluate(() => {
+        bytesTransferred += await page.evaluate(() => {
             const entries = window.performance.getEntriesByType('resource');
             return entries.reduce((total, entry) => {
                 if (entry.transferSize) {
@@ -420,8 +415,8 @@ const scrapePage = async (browser, scrapeUrl, signal, requestId) => {
                 return total;
             }, 0);
         });
-        logBoth(chalk.yellow(`${(localBytesTransferred / 1024 / 1024).toFixed(2)} MB`), requestId);
-        totalBytesTransferred += localBytesTransferred;
+        logBoth(chalk.yellow(`${(bytesTransferred / 1024).toFixed(2)} KB transferred`), requestId);
+        const pageResult = { allItems, relevantItems, pageNotFound, bytesTransferred };
         await page.close();
         return pageResult;
     }
@@ -450,45 +445,38 @@ app.post('/scrape', async (req, res) => {
             logBoth(chalk.cyan('ZIP code to use: ' + zipCode), requestId);
         else {
             zipCode = ZIP_CODE;
-            logBoth(chalk.cyan('No ZIP code provided. Using default'), requestId);
+            logBoth(chalk.cyan('No ZIP code provided. Using default: ', zipCode), requestId);
         }
-        logBoth(chalk.cyan('URLs to scrape:' + req.body.urls), requestId);
-        const { resultsToReturn, resultsToStore } = await scrapeAllUrls(req.body.urls, abortController.signal, requestId, zipCode);
+        logBoth(chalk.cyan(`${req.body.urls.length} URLs to scrape`), requestId);
+        const { resultsToReturn, resultsToStore, totalBytesTransferred } = await scrapeAllUrls(req.body.urls, abortController.signal, requestId, zipCode);
         logBoth(chalk.yellow('Scraping process finished'), requestId);
-        logBoth(chalk.yellow(`Total transferred: ${(totalBytesTransferred / 1024 / 1024).toFixed(2)} MB`), requestId);
+        logBoth(chalk.yellow(`Total transferred: ${(totalBytesTransferred / 1024).toFixed(2)} KB transferred`), requestId);
         logBoth(chalk.green('Total items found: ' + resultsToStore.length), requestId);
         logBoth(chalk.green('Relevant items found: ' + resultsToReturn.length), requestId);
-        globalScrapedData = {
+        const scrapedData = {
             json: resultsToReturn,
             csv: generateCsvString(resultsToStore),
         };
-        res.json({
-            success: true,
-            message: 'Scraping completed. Data is ready for retrieval.',
-            requestId,
-        });
+        const response = { success: true, scrapedData };
+        res.json(response);
     }
     catch (error) {
         logBoth(chalk.red('Error during scraping main:', error), requestId);
         res.status(500).json({ success: false, error: error.message });
     }
 });
-app.get('/get-data', (_req, res) => {
-    if (globalScrapedData) {
-        res.json(globalScrapedData);
-    }
-    else {
-        res.status(404).json({
-            success: false,
-            message: 'No scraped data available. Please run the scraper first.',
-        });
-    }
-});
 app.get('/get-categories/:requestId', async (req, res) => {
     const requestId = req.params.requestId;
+    let zipCode = req.query.z;
     if (!requestId) {
         res.status(400).json({ success: false, message: 'Request ID not provided' });
         return;
+    }
+    if (zipCode)
+        logBoth(chalk.cyan('ZIP code to use: ' + zipCode), requestId);
+    else {
+        zipCode = ZIP_CODE;
+        logBoth(chalk.cyan('No ZIP code provided. Using default: ', zipCode), requestId);
     }
     const abortController = new AbortController();
     abortControllers.set(requestId, abortController);
@@ -500,7 +488,7 @@ app.get('/get-categories/:requestId', async (req, res) => {
         }
     });
     logBoth(chalk.yellow('Fetching categories...'), requestId);
-    const categories = await getCategories(abortController.signal, requestId);
+    const categories = await getCategories(abortController.signal, requestId, Number(zipCode));
     res.json(categories);
 });
 app.get('/logs', (req, res) => {
@@ -512,7 +500,10 @@ app.get('/logs', (req, res) => {
         Connection: 'keep-alive',
     });
     sseClients.set(requestId, res);
-    const returnMessage = JSON.stringify({ message: 'Connected to logs endpoint :)', requestId });
+    const returnMessage = JSON.stringify({
+        message: chalk.green('Connected to log events'),
+        requestId,
+    });
     sseClients.get(requestId)?.write(`data: ${returnMessage}\n\n`);
     req.on('close', () => {
         log(chalk.red('Client disconnected from logs endpoint. requestID:', requestId));
