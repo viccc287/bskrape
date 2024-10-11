@@ -268,6 +268,10 @@ function getCategories(): void {
   fetch(`${selectedServer}/get-categories/${clientRequestId}`)
     .then((response) => response.json())
     .then((data: Category[]) => {
+      if (data.length === 0) {
+        log('No categories found', 'red');
+        return;
+      }
       localStorage.setItem('categories', JSON.stringify(data));
       log('Categories fetched successfully', 'green');
       displayCategories(data);
