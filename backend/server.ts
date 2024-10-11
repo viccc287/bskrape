@@ -587,7 +587,7 @@ app.post('/scrape', async (req: Request, res: Response) => {
     if (zipCode) logBoth(chalk.cyan('ZIP code to use: ' + zipCode), requestId);
     else {
       zipCode = ZIP_CODE;
-      logBoth(chalk.cyan('No ZIP code provided. Using default: ', zipCode), requestId);
+      logBoth(chalk.cyan('No ZIP code provided. Using default: ',zipCode), requestId);
     }
 
     logBoth(chalk.cyan(`${req.body.urls.length} URLs to scrape`), requestId);
@@ -631,7 +631,7 @@ app.get('/get-categories/:requestId', async (req: Request, res: Response) => {
   if (zipCode) logBoth(chalk.cyan('ZIP code to use: ' + zipCode), requestId);
   else {
     zipCode = ZIP_CODE;
-    logBoth(chalk.cyan('No ZIP code provided. Using default: ', zipCode), requestId);
+    logBoth(chalk.cyan('No ZIP code provided. Using default: ',zipCode), requestId);
   }
   const abortController = new AbortController();
   abortControllers.set(requestId, abortController);
