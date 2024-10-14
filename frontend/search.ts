@@ -1,4 +1,3 @@
-import './style.css';
 import { Result, ScrapedData, Category, APIScrapeResponse } from '../shared-types';
 
 let skrapeButton = document.querySelector('#skrape') as HTMLButtonElement;
@@ -51,7 +50,7 @@ const SERVER_CONFIG: {
     description: 'Cloud (slow, but mostly active)',
   },
   dedicated: {
-    url: 'http://example.com',
+    url: 'https://8qng5x7n-4000.usw3.devtunnels.ms',
     name: 'Dedicated',
     description: 'Dedicated (fast, but not always active)',
   },
@@ -68,7 +67,7 @@ for (const i in SERVER_CONFIG) {
 
     const response = await fetch(`${SERVER_CONFIG[i].url}/ping`, {
       method: 'GET',
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(5000),
     });
 
     if (response.ok) {
@@ -76,10 +75,18 @@ for (const i in SERVER_CONFIG) {
       availableServers.push(SERVER_CONFIG[i]);
     } else {
       log(`${SERVER_CONFIG[i].name} server is inactive`, 'red');
+      if (SERVER_CONFIG[i].name === 'Cloud')
+      log('Sometimes cloud server takes time to load, try reloading the page in a few seconds', 'gray');
     }
   } catch (error) {
-    if (error instanceof Error)
+    if (error instanceof Error){
       log(`${SERVER_CONFIG[i].name} server is inactive: ${error.message}`, 'red');
+      if (SERVER_CONFIG[i].name === 'Cloud')
+        log(
+          'Sometimes cloud server takes time to load, try reloading the page in a few seconds',
+          'gray',
+        );
+    }
     else log(`${SERVER_CONFIG[i].name} server is inactive`, 'red');
   }
 }

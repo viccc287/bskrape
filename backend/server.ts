@@ -690,7 +690,7 @@ app.get('/ping', (_req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   log(chalk.green(`Server listening at port ${PORT}`));
 });
 export default app;

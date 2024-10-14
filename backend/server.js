@@ -524,7 +524,7 @@ app.get('/ping', (_req, res) => {
     log(chalk.green('Ping received at:', new Date().toISOString()));
     res.json({ success: true });
 });
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     log(chalk.green(`Server listening at port ${PORT}`));
 });
 export default app;
