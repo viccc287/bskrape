@@ -1,6 +1,8 @@
-# 🕷️ Web Scraping Learning Journey
+# 🕷️ bodskraper: Web Scraping Learning Journey
 
-> **Note**: This project was created purely for learning and entertainment purposes, exploring the fascinating world of web scraping! 
+> **Note**: This project was created purely for learning and entertainment purposes, exploring the world of web scraping! 
+
+> *Why "bodskraper", you ask? "bod" for bodega, and "skraper" for... well, scraping*
 
 ## 🌐 Quick Start
 
