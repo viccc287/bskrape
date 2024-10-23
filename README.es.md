@@ -7,7 +7,7 @@
 
 ## 🎯 ¿Qué es?  
 
-Este proyecto es mi espacio para experimentar con web scraping y tiene estas características:  
+Este proyecto es un experimento de web scraping y tiene estas características:  
 
 - **Scraping real**: Por ahora funciona con Bodega Aurrera.  
 - **Cazador de ofertas**: bskrape encuentra productos en liquidación (terminados en 01, 02 y 03) y descuentos de más del 40 %.  
@@ -69,7 +69,7 @@ GET  /proxy-status     # Checa cómo va el proxy
 
 ## 🤝 ¿Quieres contribuir?  
 
-¿Tienes ideas, encontraste un bug o quieres mejorarlo? ¡Manda tu pull request! Es un proyecto para aprender, así que aprendamos juntos.  
+¿Tienes ideas, encontraste un bug o quieres mejorarlo? ¡Manda tu pull request o contáctame!
 
 ## 📜 Licencia  
 
@@ -81,8 +81,8 @@ Gracias especiales a:
 - La gente de Puppeteer por sus herramientas.  
 - La comunidad de Node.js.  
 - Todos los que usan esto para aprender sobre web scraping.
-- Render por el hosting con Docker.
+- Render por el hosting con Docker. Sin esto no sería posible el server en Cloud.
 
 ---
 
-*¡Recuerda que esto es para aprender!* 🚀  
+*Recuerda que esto es para aprender* 🚀  

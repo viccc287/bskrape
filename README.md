@@ -7,7 +7,7 @@
 
 ## 🎯 What's This All About?
 
-This project is a playground for learning web scraping techniques, featuring:
+This project is an experiment of web scraping techniques, featuring:
 
 - **Real-world Scraping**: Currently supports Bodega Aurrera store
 - **Clearance sales and discounts**: bskraper retrieves all the clearance items (endings 01, 02, and 03) and discounts over 40%!
@@ -70,7 +70,7 @@ GET  /proxy-status    # Monitor proxy status
 
 ## 🤝 Contributing
 
-Got ideas? Found a bug? Want to improve something? Pull requests are welcome! This is a learning project, so let's learn together.
+Got ideas? Found a bug? Want to improve something? Pull requests are welcome! Also you can send me an email.
 
 ## 📜 License
 
@@ -82,8 +82,8 @@ Special thanks to:
 - The amazing Puppeteer team
 - Node.js community
 - Everyone who uses this project to learn about web scraping
-- Docker hosting on Render
+- Docker hosting on Render. Without it, cloud server wouldn't exist.
 
 ---
 
-*Remember: This is a learning project - have fun exploring and experimenting with web scraping!* 🚀
+*Remember: This is a learning project - have fun!* 🚀
