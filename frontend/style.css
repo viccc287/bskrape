@@ -209,8 +209,9 @@ body > main > * {
 .download-button:disabled,
 #category-button:disabled {
   cursor: not-allowed;
-  background-color: #333;
+  background: #333;
   animation: none;
+  opacity: 25%;
 }
 
 #skrape:hover:not(:disabled) {
@@ -255,6 +256,11 @@ a {
   border-radius: 10px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
   height: 100%;
+}
+
+#categories-title{
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
 #categories-list {
@@ -468,7 +474,8 @@ a {
   gap: 10px;
 }
 
-#server-select {
+#server-select,
+#store-select {
   max-width: 200px;
   padding: 12px;
   border: none;

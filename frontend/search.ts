@@ -9,6 +9,7 @@ let zipCodeInput = document.querySelector('#zipcode-input') as HTMLInputElement;
 let categoriesContainer = document.querySelector('#categories') as HTMLDivElement;
 let resultsList = document.getElementById('results-list') as HTMLUListElement;
 let serverSelect = document.querySelector('#server-select') as HTMLSelectElement;
+let storeSelect = document.querySelector('#store-select') as HTMLSelectElement;
 
 skrapeButton.disabled = true;
 categoryButton.disabled = true;
@@ -16,22 +17,34 @@ serverSelect.disabled = true;
 let canFetchCategories = false;
 let canFetchData = false;
 
-
 let eventSource: EventSource | null = null;
 let clientRequestId: string | null = null;
 let availableServers = [];
 let selectedServerURL: string | null = null;
+let selectedStore: string = 'bodega';
 let selectedCategoryURLs: string[] = [];
 
+let storeDisplay: string;
+let storeValueLS: string;
+let fetchTimeDisplayLS: string;
+let zipCodeDisplayLS: string = 'Default';
+
 console.log(
-  "\r\n              _                         \r\n__      _____| | ___ __ __ _ _ __   ___ \r\n\\ \\ /\\ / / __| |/ / '__/ _` | '_ \\ / _ \\\r\n \\ V  V /\\__ \\   <| | | (_| | |_) |  __/\r\n  \\_/\\_/ |___/_|\\_\\_|  \\__,_| .__/ \\___|\r\n                            |_|         \r\n",
+  "\r\n _         _                         \r\n| |__  ___| | ___ __ __ _ _ __   ___ \r\n| '_ \\/ __| |/ / '__/ _` | '_ \\ / _ \\\r\n| |_) \\__ \\   <| | | (_| | |_) |  __/\r\n|_.__/|___/_|\\_\\_|  \\__,_| .__/ \\___|\r\n                         |_|         \r\n",
 );
 log(
-  "\r\n              _                         \r\n__      _____| | ___ __ __ _ _ __   ___ \r\n\\ \\ /\\ / / __| |/ / '__/ _` | '_ \\ / _ \\\r\n \\ V  V /\\__ \\   <| | | (_| | |_) |  __/\r\n  \\_/\\_/ |___/_|\\_\\_|  \\__,_| .__/ \\___|\r\n                            |_|         \r\n",
+  "\r\n _         _                         \r\n| |__  ___| | ___ __ __ _ _ __   ___ \r\n| '_ \\/ __| |/ / '__/ _` | '_ \\ / _ \\\r\n| |_) \\__ \\   <| | | (_| | |_) |  __/\r\n|_.__/|___/_|\\_\\_|  \\__,_| .__/ \\___|\r\n                         |_|         \r\n",
 );
 
 if (localStorage.getItem('categories')) {
   log('Categories loaded from local storage', 'yellow');
+  storeValueLS = localStorage.getItem('store') as string;
+  storeDisplay = storeValueLS === 'bodega' ? 'Bodega Aurrera' : 'Walmart';
+  selectedStore = storeValueLS;
+  storeSelect.value = storeValueLS;
+  fetchTimeDisplayLS = localStorage.getItem('fetchTime') as string;
+  zipCodeDisplayLS = localStorage.getItem('zipCode') as string;
+  zipCodeInput.value = zipCodeDisplayLS;
   displayCategories(JSON.parse(localStorage.getItem('categories') as string));
 } else {
   log('No categories loaded from local storage, click on Fetch categories!', 'yellow');
@@ -76,18 +89,20 @@ for (const i in SERVER_CONFIG) {
     } else {
       log(`${SERVER_CONFIG[i].name} server is inactive`, 'red');
       if (SERVER_CONFIG[i].name === 'Cloud')
-      log('Sometimes cloud server takes time to load, try reloading the page in a few seconds', 'gray');
+        log(
+          'Sometimes cloud server takes time to load, try reloading the page in a few seconds',
+          'gray',
+        );
     }
   } catch (error) {
-    if (error instanceof Error){
+    if (error instanceof Error) {
       log(`${SERVER_CONFIG[i].name} server is inactive: ${error.message}`, 'red');
       if (SERVER_CONFIG[i].name === 'Cloud')
         log(
           'Sometimes cloud server takes time to load, try reloading the page in a few seconds',
           'gray',
         );
-    }
-    else log(`${SERVER_CONFIG[i].name} server is inactive`, 'red');
+    } else log(`${SERVER_CONFIG[i].name} server is inactive`, 'red');
   }
 }
 
@@ -115,21 +130,78 @@ if (availableServers.length === 0) {
   serverSelect.disabled = false;
 }
 
-serverSelect.addEventListener('change', () => {
+serverSelect.addEventListener('change', async () => {
   selectedServerURL = serverSelect.value;
-  if (eventSource) {
-    eventSource.close();
+
+  try {
+    const response = await fetch(`${selectedServerURL}/proxy-status`);
+    const proxyStatus = await response.json();
+    if (proxyStatus.success) {
+      const trafficLeftMB = (proxyStatus.trafficLeft / 1024 / 1024).toFixed(2);
+      const trafficTotalMB = (proxyStatus.trafficTotal / 1024 / 1024).toFixed(2);
+      log(
+        `Proxy status: ${proxyStatus.proxyStatus}, ${trafficLeftMB}MB left out of ${trafficTotalMB}MB`,
+        'green',
+      );
+      serverSelect.style.color = 'limegreen';
+
+      if (proxyStatus.trafficLeft < 1024 * 1024 * 250) {
+        log('Warning: Less than 250MB of traffic left', 'orange');
+        serverSelect.style.color = 'orange';
+      }
+      if (proxyStatus.trafficLeft < 1024 * 1024 * 50) {
+        log('No proxy traffic left :(, try again later', 'darkred');
+        alert('No proxy traffic left :(, try again later');
+        skrapeButton.disabled = true;
+        categoryButton.disabled = true;
+        canFetchCategories = false;
+        canFetchData = false;
+        serverSelect.style.color = 'red';
+        serverSelect.value = '';
+        return;
+      }
+
+      if (eventSource) {
+        eventSource.close();
+      }
+      eventSource = new EventSource(`${selectedServerURL}/logs`);
+      eventSource.onmessage = (event) => {
+        const { message, requestId } = JSON.parse(event.data);
+        if (requestId) clientRequestId = requestId;
+        const coloredHtml = ansiToHtml(message);
+        logsContainer.innerHTML += coloredHtml + '<br>';
+        console.log(message);
+        scrollLogsToBottom();
+      };
+      log(`Selected server changed `, 'yellow');
+    } else {
+      log(`Proxy error: ${proxyStatus.error}`, 'red');
+      skrapeButton.disabled = true;
+      categoryButton.disabled = true;
+      canFetchCategories = false;
+      canFetchData = false;
+      
+    }
+  } catch (error) {
+    console.error('Error fetching proxy status:', error);
+    log(
+      'Error fetching proxy status. Please select another server or try again later. There may be no proxy traffic remaining...',
+      'red',
+    );
+    alert(
+      'Error fetching proxy status. Please select another server or try again later. There may be no proxy traffic remaining...',
+    );
+    skrapeButton.disabled = true;
+    categoryButton.disabled = true;
+    canFetchCategories = false;
+    serverSelect.value = '';
+
   }
-  eventSource = new EventSource(`${selectedServerURL}/logs`);
-  eventSource.onmessage = (event) => {
-    const { message, requestId } = JSON.parse(event.data);
-    if (requestId) clientRequestId = requestId;
-    const coloredHtml = ansiToHtml(message);
-    logsContainer.innerHTML += coloredHtml + '<br>';
-    console.log(message);
-    scrollLogsToBottom();
-  };
-  log(`Selected server changed`, 'yellow');
+});
+
+storeSelect.addEventListener('change', () => {
+  selectedStore = storeSelect.value;
+  log(`Selected store changed`, 'yellow');
 });
 
 const loadingSpinner = `
@@ -282,7 +354,9 @@ function getCategories(): void {
   categoryButton.disabled = true;
   canFetchCategories = false;
 
-  fetch(`${selectedServerURL}/get-categories/${clientRequestId}?z=${zipCodeInput.value}`)
+  fetch(
+    `${selectedServerURL}/get-categories/${clientRequestId}?zip=${zipCodeInput.value}&store=${selectedStore}`,
+  )
     .then((response) => response.json())
     .then((data: Category[]) => {
       if (data.length === 0) {
@@ -290,6 +364,12 @@ function getCategories(): void {
         return;
       }
       localStorage.setItem('categories', JSON.stringify(data));
+      localStorage.setItem('zipCode', zipCodeInput.value);
+      zipCodeDisplayLS = zipCodeInput.value;
+      localStorage.setItem('store', selectedStore);
+      storeDisplay = selectedStore === 'bodega' ? 'Bodega Aurrera' : 'Walmart';
+      localStorage.setItem('fetchTime', new Date().toLocaleString());
+      fetchTimeDisplayLS = new Date().toLocaleString();
       log('Categories fetched successfully', 'green');
       displayCategories(data);
     })
@@ -306,6 +386,7 @@ function getCategories(): void {
 function displayCategories(categories: Category[]): void {
   categoriesContainer.innerHTML = `
     <div id="categories-form">
+    <p id="categories-title">Categories available for ${storeDisplay} with ${zipCodeDisplayLS} ZIP code, updated at ${fetchTimeDisplayLS} </p>
       <input type="text" id="search-input" placeholder="Search categories to skrape" />
       <div id='categories-info'>
         <button type="button" id="toggle-all-btn">Select all</button>
@@ -421,6 +502,22 @@ function displayCategories(categories: Category[]): void {
 }
 
 async function startScraping(): Promise<void> {
+  if (storeValueLS && storeValueLS === 'bodega' && selectedStore !== 'bodega') {
+    log(
+      'The categories listed are for Bodega Aurrera, please select the correct store or fetch categories for Bodega!',
+      'red',
+    );
+    return;
+  }
+
+  if (storeValueLS && storeValueLS === 'walmart' && selectedStore !== 'walmart') {
+    log(
+      'The categories listed are for Walmart, please select the correct store or fetch categories for Walmart!',
+      'red',
+    );
+    return;
+  }
+
   if (!selectedServerURL) {
     log('Please select a server!', 'red');
     return;
@@ -446,7 +543,7 @@ async function startScraping(): Promise<void> {
   startTimer();
   skrapeButton.disabled = true;
   canFetchData = false;
-  const zipCode = parseInt(zipCodeInput.value);
+  const zipCode = zipCodeInput.value;
 
   try {
     resultsList.innerHTML = loadingSpinner;
@@ -455,7 +552,12 @@ async function startScraping(): Promise<void> {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ urls: selectedCategoryURLs, requestId: clientRequestId, zipCode }),
+      body: JSON.stringify({
+        urls: selectedCategoryURLs,
+        requestId: clientRequestId,
+        zipCode: String(zipCode),
+        store: selectedStore,
+      }),
     });
 
     const responseJson: APIScrapeResponse = await response.json();

@@ -1,5 +1,5 @@
 {
-  "name": "wskrape-backend",
+  "name": "bskrape-backend",
   "private": true,
   "version": "1.2.0",
   "main": "server.ts",
