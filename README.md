@@ -1,4 +1,4 @@
-# 🕷️🏷️ bskrape: Web Scraping Learning Journey
+# 🕷️🏷️ bskrape: supermarket web scraper
 [![es](https://img.shields.io/badge/lang-es-green.svg)](https://github.com/viccc287/bskrape/blob/main/README.es.md)
 
 > **Note**: This project was created purely for learning and entertainment purposes, exploring the world of web scraping! 

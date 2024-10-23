@@ -1,4 +1,4 @@
-# 🕷️🏷️ bskrape: Web scraping aplicado  
+# 🕷️🏷️ bskrape: web scraping del súper
 [![en](https://img.shields.io/badge/lang-en-blue.svg)](https://github.com/viccc287/bskrape/blob/main/README.md)
 
 > **Nota**: ¡Este proyecto nació de pura curiosidad y ganas de aprender sobre web scraping!  
