@@ -63,7 +63,7 @@ const SERVER_CONFIG: {
     description: 'Cloud (slow, but mostly active)',
   },
   dedicated: {
-    url: 'https://8qng5x7n-4000.usw3.devtunnels.ms',
+    url: 'https://dedicatedurlserver.com',
     name: 'Dedicated',
     description: 'Dedicated (fast, but not always active)',
   },
