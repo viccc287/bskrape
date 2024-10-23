@@ -1,15 +1,29 @@
-# 🕷️ bodskraper: Web Scraping Learning Journey
+# 🕷️🏷️ bskrape: Web Scraping Learning Journey
+[![es](https://img.shields.io/badge/lang-es-green.svg)](https://github.com/viccc287/bskrape/blob/main/README.es.md)
 
 > **Note**: This project was created purely for learning and entertainment purposes, exploring the world of web scraping! 
 
-> *Why "bodskraper", you ask? "bod" for bodega, and "skraper" for... well, scraping*
+> **Note 2**: The code isn't perfect... but it works for my initial goal: getting relevant supermarket deals.
+
+## 🎯 What's This All About?
+
+This project is a playground for learning web scraping techniques, featuring:
+
+- **Real-world Scraping**: Currently supports Bodega Aurrera store
+- **Clearance sales and discounts**: bskraper retrieves all the clearance items (endings 01, 02, and 03) and discounts over 40%!
+- **Legacy Code**: Walmart scraping code is included but disabled (due to detection issues - feel free to experiment!)
+- **Data Formats**: Get your data in both JSON and CSV
+- **Location Aware**: Filter results by ZIP code
+- **Live Monitoring**: Real-time logs for debugging
+
+> *Why "bskrape", you ask? "b" for bodega, and "skrape" for... well, scraping*
 
 ## 🌐 Quick Start
 
 You have two options to get started:
 
 ### Option 1: Use the Hosted Server (Quickest Path! 🚀)
-A hosted server is currently available as of 22/10/2024. However, please note:
+A hosted server is currently available as of 10/22/2024. However, please note:
 - Server could go offline at any time (it's a learning project after all!)
 - First request takes ~10 seconds to wake up the server (just reload the page)
 - Simply use the frontend and connect to the hosted API
@@ -22,16 +36,6 @@ Run your own backend server:
 3. Connect your frontend to `localhost:4000`
 4. **Important**: You MUST set up your own residential proxy service to avoid detection when hosting the server yourself. You can get one at [Data Impulse](https://app.dataimpulse.com/sign-in). Regular proxies or no proxy will likely be detected and blocked.
 
-## 🎯 What's This All About?
-
-This project is a playground for learning web scraping techniques, featuring:
-
-- **Real-world Scraping**: Currently supports Bodega Aurrera
-- **Legacy Code**: Walmart scraping code is included but disabled (due to detection issues - feel free to experiment!)
-- **Data Formats**: Get your data in both JSON and CSV
-- **Location Aware**: Filter results by ZIP code
-- **Live Monitoring**: Real-time logs for debugging
-
 ## 🔍 API Endpoints
 
 ```markdown
@@ -42,26 +46,13 @@ GET  /ping            # Check server health
 GET  /proxy-status    # Monitor proxy status
 ```
 
-## 🚀 Getting Started
+## 🚀 Required environment variables for backend
 
-1. **Clone & Install:**
-   ```bash
-   git clone https://github.com/your-username/web-scraper.git
-   cd web-scraper
-   npm install
-   ```
-
-2. **Configure Environment:**
    ```bash
    PORT=4000
    PROXY_URL=your_residential_proxy_url    # Required for self-hosting!
    PROXY_USERNAME=your_username
    PROXY_PASSWORD=your_password
-   ```
-
-3. **Launch:**
-   ```bash
-   node index.js
    ```
 
 ## 🧪 Technical Details
@@ -91,6 +82,7 @@ Special thanks to:
 - The amazing Puppeteer team
 - Node.js community
 - Everyone who uses this project to learn about web scraping
+- Docker hosting on Render
 
 ---
 
