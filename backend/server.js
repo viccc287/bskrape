@@ -1,6 +1,6 @@
 import express from 'express';
 import puppeteer from 'puppeteer-extra';
-import blockResourcesPlugin from 'puppeteer-extra-plugin-block-resources';
+import BlockResourcesPlugin from 'puppeteer-extra-plugin-block-resources';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import AdblockerPlugin from 'puppeteer-extra-plugin-adblocker';
 import cors from 'cors';
@@ -16,9 +16,12 @@ const log = console.log;
 const app = express();
 const PORT = Number(process.env.PORT) || 4000;
 app.use(cors());
-app.use(express.json());
-const BASE_URL = 'https://despensa.bodegaaurrera.com.mx';
-const LOAD_URL = 'https://despensa.bodegaaurrera.com.mx';
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+const BODEGA_BASE_URL = 'https://despensa.bodegaaurrera.com.mx';
+const BODEGA_LOAD_URL = 'https://despensa.bodegaaurrera.com.mx';
+/* const WALMART_BASE_URL = 'https://super.walmart.com.mx/';
+const WALMART_LOAD_URL = 'https://super.walmart.com.mx/'; */
 const MAX_CONCURRENT_PAGES = 5;
 const ZIP_CODE = '01000';
 const USE_ZIP_CODE = true;
@@ -37,8 +40,7 @@ if (!PROXY_URL || !PROXY_USERNAME || !PROXY_PASSWORD) {
     log(chalk.red('Proxy credentials not provided. Exiting...'));
     process.exit(1);
 }
-puppeteer
-    .use(blockResourcesPlugin({
+const BRP = BlockResourcesPlugin({
     blockedTypes: new Set([
         'image',
         'font',
@@ -51,12 +53,15 @@ puppeteer
         'other',
     ]),
     interceptResolutionPriority: DEFAULT_INTERCEPT_RESOLUTION_PRIORITY,
-}))
-    .use(StealthPlugin())
+});
+puppeteer
+    .use(BRP)
+    /*   .use(StealthPlugin()) */
     .use(AdblockerPlugin({
     blockTrackers: true,
     interceptResolutionPriority: DEFAULT_INTERCEPT_RESOLUTION_PRIORITY,
-}));
+}))
+    .use(StealthPlugin());
 const logBoth = (message, requestId) => {
     console.log(message);
     const sseRes = sseClients.get(requestId);
@@ -110,14 +115,14 @@ const gotoWithTimeout = async (page, url, signal, timeout = 300000) => {
         throw error;
     }
 };
-const scrapeAllUrls = async (urls, signal, requestId, zipCode) => {
+const scrapeAllUrls = async (store, urls, signal, requestId, zipCode) => {
     if (signal.aborted) {
         throw new Error('Aborted before starting browser');
     }
-    blockResourcesPlugin().blockedTypes.add('stylesheet');
+    BRP.blockedTypes.add('stylesheet');
     logBoth(chalk.gray('Starting browser...'), requestId);
     const browser = await puppeteer.launch({
-        headless: true,
+        headless: store === 'bodega' ? true : false,
         args: [`--proxy-server=${PROXY_URL}`],
         executablePath: process.env.NODE_ENV === 'production'
             ? PUPPETEER_EXECUTABLE_PATH
@@ -128,7 +133,7 @@ const scrapeAllUrls = async (urls, signal, requestId, zipCode) => {
     let totalBytesTransferred = 0;
     const startTime = nodePerformance.now();
     try {
-        totalBytesTransferred += await setZipCode(zipCode, browser, signal, requestId);
+        totalBytesTransferred += await setZipCode(store, zipCode, browser, signal, requestId);
         const queue = [...urls];
         const activePromises = new Set();
         const processNext = async () => {
@@ -137,7 +142,7 @@ const scrapeAllUrls = async (urls, signal, requestId, zipCode) => {
                     throw new Error('Aborted before processing next page');
                 }
                 const targetUrl = queue.shift();
-                const scrapePromise = scrapeItems(browser, targetUrl, signal, requestId)
+                const scrapePromise = scrapeItems(store, browser, targetUrl, signal, requestId)
                     .then((resultObject) => {
                     resultsToReturn = [...resultsToReturn, ...resultObject.relevantResults];
                     resultsToStore = [...resultsToStore, ...resultObject.allResults];
@@ -169,35 +174,45 @@ const scrapeAllUrls = async (urls, signal, requestId, zipCode) => {
     logBoth(chalk.yellow(`Total execution time: ${executionTime.toFixed(2)} seconds`), requestId);
     return { resultsToReturn, resultsToStore, totalBytesTransferred };
 };
-const getCategories = async (signal, requestId, zipCode) => {
+const getCategories = async (store, signal, requestId, zipCode) => {
     if (signal.aborted) {
         throw new Error('Aborted');
     }
     logBoth(chalk.gray('Starting browser...'), requestId);
     let categories = [];
     const browser = await puppeteer.launch({
-        headless: true,
+        headless: store === 'bodega' ? true : false,
         args: [`--proxy-server=${PROXY_URL}`, '--window-size=1280,720'],
+        defaultViewport: { width: 1280, height: 720 },
         executablePath: process.env.NODE_ENV === 'production'
             ? PUPPETEER_EXECUTABLE_PATH
             : puppeteer.executablePath(),
     });
     try {
-        await setZipCode(zipCode, browser, signal, requestId);
+        await setZipCode(store, zipCode, browser, signal, requestId);
         const page = await browser.newPage();
         await page.authenticate({
             username: PROXY_USERNAME,
             password: PROXY_PASSWORD,
         });
-        logBoth(chalk.gray(`Getting categories using ZIP code ${zipCode} from ${LOAD_URL}`), requestId);
-        await gotoWithTimeout(page, LOAD_URL, signal);
+        if (store === 'bodega') {
+            logBoth(chalk.gray(`Getting categories using ZIP code ${zipCode} from ${BODEGA_LOAD_URL}`), requestId);
+            await gotoWithTimeout(page, BODEGA_LOAD_URL, signal);
+        } /* else if (store === 'walmart') {
+          logBoth(
+            chalk.gray(`Getting categories using ZIP code ${zipCode} from ${WALMART_LOAD_URL}`),
+            requestId,
+          );
+    
+          await gotoWithTimeout(page, WALMART_LOAD_URL, signal);
+        } */
         const pageUrl = page.url();
-        if (!pageUrl.includes(BASE_URL)) {
-            throw new Error('Redirected to external page');
-        }
+        /*   if (!pageUrl.includes(BODEGA_BASE_URL || WALMART_BASE_URL)) {
+          throw new Error('Redirected to external page: ' + pageUrl);
+        } */
         logBoth(chalk.gray('Arrived at page:', pageUrl), requestId);
         await page.waitForSelector("[link-identifier='Departments'] > i"), { visible: false };
-        await page.click("[link-identifier='Departments'] > i", { delay: 1000 });
+        await page.click("[link-identifier='Departments'] > i", { delay: 3000 });
         logBoth(chalk.magenta('Opening departments dropdown'), requestId);
         await page.waitForSelector("[link-identifier='viewAllDepartment']");
         const buttons = await page.$$('[link-identifier="viewAllDepartment"] + ul > li > button');
@@ -205,14 +220,28 @@ const getCategories = async (signal, requestId, zipCode) => {
         for (let i = 1; i < buttons.length; i++) {
             const button = buttons[i];
             await button.click();
-            const departmentList = await page.waitForSelector('.f6.list.ma0.normal.pa0.pb4');
+            let departmentList;
+            if (store === 'bodega')
+                departmentList = await page.waitForSelector('.f6.list.ma0.normal.pa0.pb4');
+            /* else if (store === 'walmart')
+              departmentList = await page.waitForSelector('[data-testid="category-menu"]'); */
             if (!departmentList) {
                 logBoth(chalk.red('Department list not found'), requestId);
                 continue;
             }
-            const departmentItems = await departmentList.$$('li > a');
+            let departmentItems;
+            if (store === 'bodega')
+                departmentItems = await departmentList.$$('li > a');
+            /*  else if (store === 'walmart')
+              departmentItems = await departmentList.$$('.f6.list.ma0.normal.pa0.pb4 li > a'); */
+            if (!departmentItems) {
+                logBoth(chalk.red('Department items not found'), requestId);
+                continue;
+            }
             const newCategories = await Promise.all(departmentItems.slice(1).map(async (item) => {
                 return await item.evaluate((el) => {
+                    if (el.textContent === 'Ver todo')
+                        return { name: 'Ver todo', url: '' };
                     return { name: el.textContent ?? 'Categoría', url: el.href };
                 });
             }));
@@ -229,7 +258,9 @@ const getCategories = async (signal, requestId, zipCode) => {
         await browser.close();
         logBoth(chalk.gray('Browser closed'), requestId);
     }
-    const filteredCategories = categories.filter((category) => !category.url.includes('content'));
+    const filteredCategories = categories
+        .filter((category) => !category.url.includes('content'))
+        .filter((category) => category.url !== '');
     const uniqueCategories = filteredCategories.reduce((acc, current) => {
         const x = acc.find((item) => item.url === current.url);
         if (!x) {
@@ -239,9 +270,10 @@ const getCategories = async (signal, requestId, zipCode) => {
             return acc;
         }
     }, []);
+    logBoth(chalk.gray('Categories fetched: ' + uniqueCategories.length), requestId);
     return uniqueCategories;
 };
-const scrapeItems = async (browser, url, signal, requestId) => {
+const scrapeItems = async (store, browser, url, signal, requestId) => {
     if (signal.aborted) {
         throw new Error('Aborted');
     }
@@ -256,7 +288,7 @@ const scrapeItems = async (browser, url, signal, requestId) => {
                 throw new Error('Aborted');
             }
             const pageUrl = `${url}${currentPage > 1 ? `?page=${currentPage}` : ''}`;
-            const { allItems, relevantItems, pageNotFound, bytesTransferred: pageBytes, } = await scrapePage(browser, pageUrl, signal, requestId);
+            const { allItems, relevantItems, pageNotFound, bytesTransferred: pageBytes, } = await scrapePage(store, browser, pageUrl, signal, requestId);
             if (pageNotFound) {
                 hasMorePages = false;
                 logBoth(chalk.magenta(`Stopping scraping for: ${url}`), requestId);
@@ -275,7 +307,7 @@ const scrapeItems = async (browser, url, signal, requestId) => {
         throw error;
     }
 };
-const setZipCode = async (zipCode, browser, signal, requestId) => {
+const setZipCode = async (store, zipCode, browser, signal, requestId) => {
     if (signal.aborted) {
         throw new Error('Aborted before setting ZIP code');
     }
@@ -285,12 +317,17 @@ const setZipCode = async (zipCode, browser, signal, requestId) => {
         username: PROXY_USERNAME,
         password: PROXY_PASSWORD,
     });
-    logBoth(chalk.gray(`Going to set ZIP code ${zipCode} in ${LOAD_URL}`), requestId);
-    await gotoWithTimeout(page, LOAD_URL, signal);
+    if (store === 'bodega') {
+        logBoth(chalk.gray(`Going to set ZIP code ${zipCode} in ${BODEGA_LOAD_URL}`), requestId);
+        await gotoWithTimeout(page, BODEGA_LOAD_URL, signal);
+    } /*  else if (store === 'walmart') {
+      logBoth(chalk.gray(`Going to set ZIP code ${zipCode} in ${WALMART_LOAD_URL}`), requestId);
+      await gotoWithTimeout(page, WALMART_LOAD_URL, signal);
+    } */
     const url = page.url();
-    if (!url.includes(BASE_URL)) {
-        throw new Error('Redirected to external page');
-    }
+    /*  if (!url.includes(BODEGA_BASE_URL || WALMART_BASE_URL)) {
+      throw new Error('Redirected to external page');
+    } */
     logBoth(chalk.gray('Arrived at page:', url), requestId);
     logBoth(chalk.gray('Setting ZIP code...'), requestId);
     if (USE_ZIP_CODE && !url.includes('page')) {
@@ -301,17 +338,17 @@ const setZipCode = async (zipCode, browser, signal, requestId) => {
         }
         logBoth(chalk.magenta('Waiting for input to appear...'), requestId);
         await page.waitForSelector('input.checkout-store-chooser-input', { timeout: 60000 });
-        await page.click('input.checkout-store-chooser-input', { delay: 1000 });
+        await page.click('input.checkout-store-chooser-input', { delay: 3000 });
         await page.$eval('input.checkout-store-chooser-input', (el) => (el.value = ''));
-        await page.type('input.checkout-store-chooser-input', zipCode.toString(), { delay: 150 });
+        await page.type('input.checkout-store-chooser-input', zipCode.toString(), { delay: 250 });
         logBoth(chalk.magenta('Typed ZIP code: ', zipCode), requestId);
         await page.waitForSelector("input[name='pickup-store']");
-        await page.click("input[name='pickup-store']", { delay: 1500 });
+        await page.click("input[name='pickup-store']", { delay: 2000 });
         logBoth(chalk.magenta('Selected store'), requestId);
         await page.waitForSelector('[data-automation-id="save-label"]');
-        await page.click('[data-automation-id="save-label"]', { delay: 1500 });
+        await page.click('[data-automation-id="save-label"]', { delay: 1000 });
         logBoth(chalk.magenta('Saved store'), requestId);
-        const waitDuration = 12000;
+        const waitDuration = 8000;
         logBoth(chalk.magenta(`Waiting for store selection to finish... (${waitDuration / 1000} seconds)`), requestId);
         await new Promise((resolve) => setTimeout(resolve, waitDuration));
         logBoth(chalk.gray('Store selection finished'), requestId);
@@ -329,7 +366,7 @@ const setZipCode = async (zipCode, browser, signal, requestId) => {
     }
     return bytesTransferred;
 };
-const scrapePage = async (browser, scrapeUrl, signal, requestId) => {
+const scrapePage = async (store, browser, scrapeUrl, signal, requestId) => {
     if (signal.aborted) {
         throw new Error('Aborted');
     }
@@ -343,9 +380,9 @@ const scrapePage = async (browser, scrapeUrl, signal, requestId) => {
         logBoth(chalk.gray(`Going to scrape page: ${scrapeUrl}`), requestId);
         await gotoWithTimeout(page, scrapeUrl, signal);
         const url = page.url();
-        if (!url.includes(BASE_URL)) {
-            throw new Error('Redirected to external page');
-        }
+        /*  if (!url.includes(BODEGA_BASE_URL || WALMART_BASE_URL)) {
+          throw new Error('Redirected to external page');
+        } */
         const { relevantItems, allItems, pageNotFound } = await page.evaluate(() => {
             let relevantItems = [];
             let allItems = [];
@@ -357,7 +394,10 @@ const scrapePage = async (browser, scrapeUrl, signal, requestId) => {
             const storeAddress = addressDivs[1]?.textContent ?? null;
             const itemStack = document.querySelector("[data-testid='item-stack']");
             const itemElements = itemStack ? itemStack.querySelectorAll('[data-item-id]') : [];
-            const pageNotFound = document.body.textContent.includes('No se pudo encontrar esta página.');
+            let pageNotFound = false;
+            pageNotFound =
+                document.body.textContent.includes('No se pudo encontrar esta página.') ||
+                    document.body.textContent.includes('Lo sentimos');
             if (pageNotFound) {
                 return { allItems, relevantItems, pageNotFound };
             }
@@ -458,7 +498,7 @@ app.post('/scrape', async (req, res) => {
             logBoth(chalk.cyan('No ZIP code provided. Using default: ', zipCode), requestId);
         }
         logBoth(chalk.cyan(`${req.body.urls.length} URLs to scrape`), requestId);
-        const { resultsToReturn, resultsToStore, totalBytesTransferred } = await scrapeAllUrls(req.body.urls, abortController.signal, requestId, zipCode);
+        const { resultsToReturn, resultsToStore, totalBytesTransferred } = await scrapeAllUrls(req.body.store, req.body.urls, abortController.signal, requestId, String(zipCode));
         logBoth(chalk.yellow('Scraping process finished'), requestId);
         logBoth(chalk.yellow(`Total transferred: ${(totalBytesTransferred / 1024).toFixed(2)} KB transferred`), requestId);
         logBoth(chalk.green('Total items found: ' + resultsToStore.length), requestId);
@@ -477,7 +517,8 @@ app.post('/scrape', async (req, res) => {
 });
 app.get('/get-categories/:requestId', async (req, res) => {
     const requestId = req.params.requestId;
-    let zipCode = req.query.z;
+    let zipCode = req.query.zip;
+    let store = String(req.query.store);
     if (!requestId) {
         res.status(400).json({ success: false, message: 'Request ID not provided' });
         return;
@@ -487,6 +528,12 @@ app.get('/get-categories/:requestId', async (req, res) => {
     else {
         zipCode = ZIP_CODE;
         logBoth(chalk.cyan('No ZIP code provided. Using default: ', zipCode), requestId);
+    }
+    if (store)
+        logBoth(chalk.cyan('Store to use: ' + store), requestId);
+    else {
+        store = 'bodega';
+        logBoth(chalk.cyan('No store provided. Using default: ', store), requestId);
     }
     const abortController = new AbortController();
     abortControllers.set(requestId, abortController);
@@ -498,7 +545,7 @@ app.get('/get-categories/:requestId', async (req, res) => {
         }
     });
     logBoth(chalk.yellow('Fetching categories...'), requestId);
-    const categories = await getCategories(abortController.signal, requestId, Number(zipCode));
+    const categories = await getCategories(store, abortController.signal, requestId, zipCode);
     res.json(categories);
 });
 app.get('/logs', (req, res) => {
@@ -523,6 +570,27 @@ app.get('/logs', (req, res) => {
 app.get('/ping', (_req, res) => {
     log(chalk.green('Ping received at:', new Date().toISOString()));
     res.json({ success: true });
+});
+app.get('/proxy-status', async (_req, res) => {
+    try {
+        const auth = Buffer.from(`${PROXY_USERNAME}:${PROXY_PASSWORD}`).toString('base64');
+        const response = await fetch('https://gw.dataimpulse.com:777/api/stats', {
+            headers: {
+                'Authorization': `Basic ${auth}`
+            }
+        });
+        if (!response.ok) {
+            throw new Error('Proxy API response was not ok');
+        }
+        const json = await response.json();
+        res.json({ success: true, trafficLeft: json.traffic_left, trafficTotal: json.total_traffic, proxyStatus: json.status });
+    }
+    catch (error) {
+        if (error instanceof Error) {
+            console.error('Error:', error.message);
+            res.json({ success: false, error: error.message });
+        }
+    }
 });
 app.listen(PORT, '0.0.0.0', () => {
     log(chalk.green(`Server listening at port ${PORT}`));
